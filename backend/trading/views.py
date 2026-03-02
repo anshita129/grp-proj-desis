@@ -3,7 +3,8 @@ from rest_framework.response import Response # type: ignore
 from rest_framework import status # type: ignore
 from rest_framework.permissions import IsAuthenticated # type: ignore
 from .services import execute_buy, execute_sell, InsufficientFundsError, InsufficientHoldingsError
-from .models import Wallet, Holding, TradeLog, Stock
+from .models import Wallet, Holding, TradeLog, Stock, Order
+
  
  
 class BuyView(APIView):
@@ -109,3 +110,48 @@ class TradeHistoryView(APIView):
             "balance_after": float(l.wallet_balance_after),
             "time":        l.executed_at.isoformat()
         } for l in logs])
+
+class PendingOrdersView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Show all pending orders"""
+        orders = Order.objects.filter(
+            student=request.user,
+            status=Order.Status.PENDING
+        ).select_related('stock').order_by('-created_at')
+        
+        return Response([{
+            'id': str(o.id),
+            'symbol': o.stock.symbol,
+            'order_type': o.order_type,
+            'quantity': o.quantity,
+            'price': float(o.price_at_order),
+            'total_value': float(o.total_value),
+            'created_at': o.created_at.isoformat()
+        } for o in orders])
+
+class CancelOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, id=order_id, student=request.user)
+        if order.status == Order.Status.PENDING:
+            order.status = Order.Status.CANCELLED
+            order.save()
+            return Response({'status': 'cancelled'})
+        return Response({'error': 'Cannot cancel non-pending order'}, status=400)
+
+class OrderHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """All orders with status breakdown"""
+        orders = Order.objects.filter(student=request.user).select_related('stock')
+        return Response({
+            'pending': list(orders.filter(status=Order.Status.PENDING).values('id', 'stock__symbol', 'order_type', 'quantity', 'created_at')),
+            'executed': list(orders.filter(status=Order.Status.EXECUTED).values('id', 'stock__symbol', 'order_type', 'quantity', 'executed_at')),
+            'cancelled': list(orders.filter(status=Order.Status.CANCELLED).values('id', 'stock__symbol', 'order_type', 'quantity')),
+            'failed': list(orders.filter(status=Order.Status.FAILED).values('id', 'stock__symbol', 'failure_reason'))
+        })
+

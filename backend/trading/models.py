@@ -3,6 +3,9 @@ import uuid
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
+from django.db.models import Avg
+from django.utils import timezone
+from datetime import timedelta
 
 
 class Stock(models.Model):
@@ -99,3 +102,23 @@ class TradeLog(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['student', '-executed_at'])]
+
+class DailyStockPrice(models.Model):
+    """
+    One price per stock per day → Perfect for 30-day charts!
+    """
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name='daily_prices')
+    date = models.DateField()  # 2026-03-03
+    open_price = models.DecimalField(max_digits=12, decimal_places=2)
+    high_price = models.DecimalField(max_digits=12, decimal_places=2)
+    low_price = models.DecimalField(max_digits=12, decimal_places=2)
+    close_price = models.DecimalField(max_digits=12, decimal_places=2)  # Use this for charts
+    volume = models.BigIntegerField(default=0)
+    
+    class Meta:
+        unique_together = ['stock', 'date']  # Only 1 record per stock per day
+        indexes = [models.Index(fields=['stock', 'date'])]
+        ordering = ['-date']  # Newest first
+    
+    def __str__(self):
+        return f"{self.stock.symbol} {self.date}: ₹{self.close_price}"
