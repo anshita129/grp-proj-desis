@@ -4,7 +4,10 @@ from django.db import models
 from django.conf import settings
 from trading.models import Stock
 
-User = settings.AUTH_USER_MODEL
+
+# In your portfolio view or serializer:
+holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
+
 
 class Holding(models.Model):
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='portfolio_holdings')
