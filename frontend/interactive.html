@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Market Simulation</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: white; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; background: #1e293b; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #38bdf8; margin-top: 0; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 2rem; }
+        .card { background: #334155; padding: 1.5rem; border-radius: 8px; text-align: center; }
+        .value { font-size: 1.5rem; font-weight: bold; color: #10b981; margin-top: 0.5rem; }
+        .controls { display: flex; gap: 1rem; margin-bottom: 2rem; }
+        button { background: #3b82f6; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #2563eb; }
+        .trade-panel { background: #334155; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; }
+        input { padding: 0.5rem; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: white; width: 80px; }
+        .log-panel { background: #000; padding: 1rem; border-radius: 8px; font-family: monospace; height: 200px; overflow-y: auto; color: #a3e635; }
+        .status { margin-bottom: 1rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Time-Travel Market Simulator</h1>
+    <div class="status" id="status-text">Engine Offline. Click Start to initialize scenario.</div>
+    <div class="status"><strong>Current Date:</strong> <span id="current-date">--</span></div>
+
+    <div class="dashboard">
+        <div class="card">
+            <div>Net Asset Value (NAV)</div>
+            <div class="value" id="nav">$0.00</div>
+        </div>
+        <div class="card">
+            <div>Available Cash</div>
+            <div class="value" id="cash">$0.00</div>
+        </div>
+        <div class="card">
+            <div>AAPL Shares Owned</div>
+            <div class="value" id="shares">0</div>
+        </div>
+        <div class="card" style="grid-column: span 3; color: white;">
+            <div>Today's AAPL Price</div>
+            <div class="value" style="color: #38bdf8" id="price">$0.00</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="startSim()" id="btn-start">🚀 Start Simulation</button>
+        <button onclick="advanceTime()" id="btn-advance" style="background: #10b981; display: none;">⏳ Advance 1 Day ></button>
+    </div>
+
+    <div class="trade-panel" id="trade-panel" style="display: none;">
+        <h3>Manual Trading (AAPL)</h3>
+        <p style="font-size: 0.9em; color:#94a3b8">Orders queued today execute at tomorrow's open/close.</p>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <input type="number" id="qty" value="10" min="1">
+            <button onclick="placeTrade('buy')" style="background: #10b981;">Buy Shares</button>
+            <button onclick="placeTrade('sell')" style="background: #ef4444;">Sell Shares</button>
+        </div>
+    </div>
+
+    <div class="log-panel" id="log"></div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:8003/api/simulation/interactive/";
+    let currentSnapshotId = null;
+
+    function logMessage(msg) {
+        const logPanel = document.getElementById("log");
+        const time = new Date().toLocaleTimeString();
+        logPanel.innerHTML += `<div>[${time}] ${msg}</div>`;
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function updateDashboard(data) {
+        document.getElementById("current-date").innerText = data.current_date;
+        document.getElementById("nav").innerText = `$${data.portfolio.nav.toFixed(2)}`;
+        document.getElementById("cash").innerText = `$${data.portfolio.cash.toFixed(2)}`;
+        
+        let shares = 0;
+        let price = 0;
+        if (data.portfolio.positions && data.portfolio.positions["AAPL"]) {
+            shares = data.portfolio.positions["AAPL"].quantity;
+        }
+        
+        // Infer price from nav and cash since it's only 1 asset
+        if (shares > 0) {
+            price = (data.portfolio.nav - data.portfolio.cash) / shares;
+        } else {
+            // Hard to infer without holding it in this simple endpoint, normally backend would return it.
+            price = "---";
+        }
+        
+        document.getElementById("shares").innerText = shares;
+        if(price !== "---") document.getElementById("price").innerText = `$${price.toFixed(2)}`;
+    }
+
+    async function sendRequest(payload) {
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if(data.error) {
+                logMessage(`ERROR: ${data.error}`);
+                return null;
+            }
+            if(data.snapshot_id) {
+                currentSnapshotId = data.snapshot_id;
+                logMessage(data.message);
+                updateDashboard(data);
+                return data;
+            }
+        } catch (e) {
+            logMessage(`Network Error: ${e.message}`);
+        }
+        return null;
+    }
+
+    async function startSim() {
+        document.getElementById("btn-start").disabled = true;
+        logMessage("Starting scenario timeline...");
+        const res = await sendRequest({ action: "start" });
+        if(res) {
+            document.getElementById("status-text").innerText = "Engine Online & Paused.";
+            document.getElementById("btn-start").style.display = "none";
+            document.getElementById("btn-advance").style.display = "block";
+            document.getElementById("trade-panel").style.display = "block";
+        }
+    }
+
+    async function advanceTime() {
+        if(!currentSnapshotId) return;
+        document.getElementById("btn-advance").disabled = true;
+        const res = await sendRequest({ action: "advance", snapshot_id: currentSnapshotId });
+        if(res && res.finished) {
+            document.getElementById("btn-advance").style.display = "none";
+            document.getElementById("trade-panel").style.display = "none";
+            document.getElementById("status-text").innerText = "Scenario Complete.";
+            logMessage("End of scenario timeline reached.");
+        }
+        document.getElementById("btn-advance").disabled = false;
+    }
+
+    async function placeTrade(side) {
+        if(!currentSnapshotId) return;
+        const qty = document.getElementById("qty").value;
+        await sendRequest({ 
+            action: "trade", 
+            snapshot_id: currentSnapshotId,
+            symbol: "AAPL",
+            side: side,
+            quantity: qty
+        });
+    }
+</script>
+
+</body>
+</html>

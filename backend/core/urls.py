@@ -23,4 +23,5 @@ urlpatterns = [
     path("portfolio/", include("portfolio.urls")),
     path("api-auth/", include("rest_framework.urls")),
     path('api/trading/', include('trading.urls')),
+    path('api/simulation/', include('simulation.urls')),
 ]

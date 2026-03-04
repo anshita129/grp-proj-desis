@@ -1,12 +1,16 @@
 
 # Create your models here.
 from django.db import models
-from django.conf import settings
 from trading.models import Stock
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 
 # In your portfolio view or serializer:
-holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
+# from django.contrib.auth import get_user_model
+# User = get_user_model()
+# The following line was erroneous and removed:
+# holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
 
 
 class Holding(models.Model):
