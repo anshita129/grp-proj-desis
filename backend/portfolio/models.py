@@ -6,11 +6,12 @@ from trading.models import Stock
 
 
 # In your portfolio view or serializer:
-holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
+#holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
 
 
 class Holding(models.Model):
-    user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='portfolio_holdings')
+    #user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='portfolio_holdings')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='portfolio_holdings')
     stock         = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name='portfolio_holdings')
     quantity      = models.PositiveIntegerField()
     avg_buy_price = models.DecimalField(max_digits=12, decimal_places=2)

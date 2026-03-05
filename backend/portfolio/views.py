@@ -24,3 +24,4 @@ def portfolio_view(request):
         "top_gainers": gain_loss["top_gainers"],
         "top_losers": gain_loss["top_losers"],
     })
+
