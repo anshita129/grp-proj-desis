@@ -5,7 +5,6 @@ from collections import defaultdict
 from django.db.models import Sum, Count, Max, Avg
 
 
-
 def get_portfolio_summary(user):
     holdings = Holding.objects.filter(student=user).select_related('stock')
 
