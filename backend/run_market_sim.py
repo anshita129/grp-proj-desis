@@ -8,9 +8,10 @@ from rich.table import Table
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from market_simulation.metrics.performance import compute_metrics
-from market_simulation.replay.price_store import InMemoryPriceStore, OHLC
+from market_simulation.replay.csv_price_store import CSVPriceStore
 from market_simulation.strategy.comparison_runner import StrategyComparisonRunner
 from market_simulation.replay.trade_queue import ScheduledOrder
+from pathlib import Path
 
 class BuyHoldStrategy:
     name = "buy_hold"
@@ -40,15 +41,9 @@ def main():
     console = Console()
     console.print("[bold blue]Starting Market Simulation Example...[/bold blue]\n")
 
-    # 1. Setup mock data
-    prices = {
-        date(2024, 1, 1): {"AAPL": OHLC(150, 155, 149, 152)},
-        date(2024, 1, 2): {"AAPL": OHLC(152, 158, 150, 157)},
-        date(2024, 1, 3): {"AAPL": OHLC(157, 160, 155, 159)},
-        date(2024, 1, 4): {"AAPL": OHLC(158, 162, 156, 161)},
-        date(2024, 1, 5): {"AAPL": OHLC(161, 165, 160, 164)},
-    }
-    store = InMemoryPriceStore(prices)
+    # 1. Load price data from CSV
+    csv_path = Path(__file__).parents[1] / "market_simulation_data.csv"
+    store = CSVPriceStore(csv_path)
     
     # 2. ConfigureRunner
     runner = StrategyComparisonRunner(

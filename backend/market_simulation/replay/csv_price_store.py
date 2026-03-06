@@ -28,20 +28,31 @@ class CSVPriceStore(PriceStore):
 
         with self.filepath.open("r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            # Ensure columns exist loosely
-            required = {"Date", "Symbol", "Close"}
-            if not required.issubset(set(reader.fieldnames or [])):
-                raise ValueError(f"CSV must contain at least: {required}")
+            fieldnames = set(reader.fieldnames or [])
+
+            # Support both title and lower case headers
+            date_col = "Date" if "Date" in fieldnames else "timestamp"
+            sym_col = "Symbol" if "Symbol" in fieldnames else "symbol"
+            close_col = "Close" if "Close" in fieldnames else "close"
+            open_col = "Open" if "Open" in fieldnames else "open"
+            high_col = "High" if "High" in fieldnames else "high"
+            low_col = "Low" if "Low" in fieldnames else "low"
+            vol_col = "Volume" if "Volume" in fieldnames else "volume"
+
+            if close_col not in fieldnames or sym_col not in fieldnames or date_col not in fieldnames:
+                raise ValueError(f"CSV missing required columns. Found: {fieldnames}")
 
             for row in reader:
-                d = datetime.strptime(row["Date"], "%Y-%m-%d").date()
-                sym = row["Symbol"].upper()
+                # Handle either ISO date or full timestamp string
+                date_str = row[date_col].split(" ")[0]
+                d = datetime.strptime(date_str, "%Y-%m-%d").date()
+                sym = row[sym_col].upper()
                 ohlc = OHLC(
-                    open=float(row.get("Open", row["Close"])),
-                    high=float(row.get("High", row["Close"])),
-                    low=float(row.get("Low", row["Close"])),
-                    close=float(row["Close"]),
-                    volume=float(row.get("Volume", 0)) if "Volume" in row else None,
+                    open=float(row.get(open_col, row[close_col])),
+                    high=float(row.get(high_col, row[close_col])),
+                    low=float(row.get(low_col, row[close_col])),
+                    close=float(row[close_col]),
+                    volume=float(row.get(vol_col, 0)) if vol_col in row else None,
                 )
                 
                 if d not in self._prices:
