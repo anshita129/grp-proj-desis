@@ -6,14 +6,14 @@ from django.core.validators import MinValueValidator
 
 
 class Stock(models.Model):
-    symbol        = models.CharField(max_length=20, unique=True)
-    company_name  = models.CharField(max_length=200)
-    sector        = models.CharField(max_length=100, blank=True)
+    symbol = models.CharField(max_length=20, unique=True)
+    company_name = models.CharField(max_length=200)
+    sector = models.CharField(max_length=100, blank=True)
     current_price = models.DecimalField(max_digits=12, decimal_places=2)
-    last_updated  = models.DateTimeField(auto_now=True)
+    last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.symbol} — {self.company_name}'
+        return f"{self.symbol} - {self.company_name}"
 
 
 class Wallet(models.Model):
