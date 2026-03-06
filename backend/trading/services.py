@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from .models import Wallet, Stock, Order, Holding, TradeLog, LimitOrder
+import pytz
 
 # CUSTOM EXCEPTIONS
 # These are custom error types we raise so views.py can catch them specifically
@@ -23,9 +24,26 @@ class InvalidOrderError(Exception):
 class OrderCancellationError(Exception):
     pass  # raised when trying to cancel an order that can't be cancelled
 
+def is_market_open():
+    ist = pytz.timezone('Asia/Kolkata')
+    now = timezone.now().astimezone(ist)
+    
+    # Saturday=5, Sunday=6
+    if now.weekday() >= 5:
+        return False, "Market closed — weekend"
+    
+    # NSE hours: 9:15 AM to 3:30 PM IST
+    market_open  = now.replace(hour=9,  minute=15, second=0, microsecond=0)
+    market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    
+    if now < market_open:
+        return False, f"Market opens at 9:15 AM IST"
+    if now > market_close:
+        return False, f"Market closed — opens tomorrow 9:15 AM IST"
+    
+    return True, "Market open"
 
-# VALIDATION 
-
+# VALIDATION
 def validate_order_input(symbol, quantity):
     """
     Runs before any database query.
@@ -55,6 +73,10 @@ def execute_buy(student, symbol: str, quantity: int, idempotency_key=None ) -> O
     All steps happen inside one atomic transaction — if anything fails,
     everything is rolled back automatically.
     """
+    # Check market hours first — before any DB query
+    is_open, message = is_market_open()
+    if not is_open:
+        raise InvalidOrderError(message)
 
     # validate input — raises InvalidOrderError if bad
     symbol = validate_order_input(symbol, quantity)
@@ -166,7 +188,10 @@ def execute_sell(student, symbol: str, quantity: int, idempotency_key=None) -> O
     Immediately sells {quantity} shares of {symbol} at current market price.
     checks holdings and credits wallet.
     """
-
+    # Check market hours first — before any DB query
+    is_open, message = is_market_open()
+    if not is_open:
+        raise InvalidOrderError(message)
     symbol = validate_order_input(symbol, quantity)
 
     with transaction.atomic():
@@ -255,7 +280,11 @@ def place_limit_buy(student, symbol: str, quantity: int, limit_price: Decimal, i
     If price is already at or below limit, executes immediately.
     Otherwise sits as PENDING.
     """
-
+    # Check market hours first — before any DB query
+    is_open, message = is_market_open()
+    if not is_open:
+        raise InvalidOrderError(message)
+    
     symbol = validate_order_input(symbol, quantity)
 
     if limit_price <= 0:
@@ -329,6 +358,11 @@ def place_limit_sell(student, symbol: str, quantity: int, limit_price: Decimal, 
     No money reserved.
     """
 
+    # Check market hours first — before any DB query
+    is_open, message = is_market_open()
+    if not is_open:
+        raise InvalidOrderError(message)
+    
     symbol = validate_order_input(symbol, quantity)
 
     if limit_price <= 0:

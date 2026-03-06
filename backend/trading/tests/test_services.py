@@ -2,11 +2,14 @@ from threading import Thread
 from django.db import transaction
 from users.models import User
 from trading.models import Wallet, Stock, Holding, TradeLog, Order
-from trading.services import _execute_limit_buy, execute_buy, execute_sell, InsufficientFundsError, InsufficientHoldingsError, place_limit_buy
+from trading.services import InvalidOrderError, _execute_limit_buy, execute_buy, execute_sell, InsufficientFundsError, InsufficientHoldingsError, place_limit_buy, is_market_open
 from decimal import Decimal
 from unittest.mock import patch
 from django.test import TransactionTestCase
 import uuid
+from django.utils import timezone
+from datetime import datetime
+import pytz
 
 class TradingTestCase(TransactionTestCase):
 
@@ -26,6 +29,19 @@ class TradingTestCase(TransactionTestCase):
             sector='IT',
             current_price=Decimal('100.00')
         )
+        # Patch market hours to always be OPEN during tests
+        # Monday 11:00 AM IST — guaranteed market open
+        ist       = pytz.timezone('Asia/Kolkata')
+        fake_time = ist.localize(datetime(2025, 1, 6, 11, 0, 0))
+        self.market_patcher = patch(
+            'trading.services.timezone.now',
+            return_value=fake_time
+        )
+        self.market_patcher.start()
+
+    def tearDown(self):
+        # Stop the patch after each test so it doesn't leak
+        self.market_patcher.stop()
 
 
     #  BUY TESTS 
@@ -241,4 +257,116 @@ class TradingTestCase(TransactionTestCase):
         check_limit_orders()
 
         order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.EXECUTED)
+
+    def replay_trades(self, student):
+        wallet = Decimal("10000.00")  # match initial balance
+        holdings = {}
+
+
+        logs = TradeLog.objects.filter(student=student).order_by("executed_at")
+
+
+        for log in logs:
+            if log.order_type == Order.OrderType.BUY:
+                wallet -= log.total_value
+                holdings[log.stock_symbol] = holdings.get(log.stock_symbol, 0) + log.quantity
+
+
+            elif log.order_type == Order.OrderType.SELL:
+                wallet += log.total_value
+                holdings[log.stock_symbol] = holdings.get(log.stock_symbol, 0) - log.quantity
+
+
+        return wallet, holdings
+   
+    def test_trade_replay_consistency(self):
+        execute_buy(self.user, "TCS", 5)
+        execute_sell(self.user, "TCS", 2)
+
+
+        actual_wallet = Wallet.objects.get(student=self.user).balance
+        actual_holding = Holding.objects.get(student=self.user, stock=self.stock).quantity
+
+
+        replay_wallet, replay_holdings = self.replay_trades(self.user)
+
+
+        self.assertEqual(actual_wallet, replay_wallet)
+        self.assertEqual(actual_holding, replay_holdings["TCS"])
+
+    #Helper — creates a timezone-aware datetime in IST. weekday: 0=Monday, 1=Tuesday ... 5=Saturday, 6=Sunday
+    def _make_ist_time(self, weekday, hour, minute):
+        ist = pytz.timezone('Asia/Kolkata')
+        # Start from a known Monday (2025-01-06) and offset by weekday
+        base = datetime(2025, 1, 6, hour, minute, 0)
+        base = base + timezone.timedelta(days=weekday)
+        return ist.localize(base)
+    
+    # Helper to patch timezone.now() to return our fake IST time during tests
+    def _patch_time(self, dt):
+        return patch('trading.services.timezone.now', return_value=dt)
+
+    #  SHOULD BE OPEN: Monday 11:00 AM IST 
+    def test_market_open_during_trading_hours(self):
+        fake_time = self._make_ist_time(weekday=0, hour=11, minute=0)
+        with self._patch_time(fake_time):
+            is_open, msg = is_market_open()
+        self.assertTrue(is_open)
+
+    # Monday 3:30 PM IST should still be open
+    def test_market_open_at_exactly_1530(self):
+        fake_time = self._make_ist_time(weekday=0, hour=15, minute=30)
+        with self._patch_time(fake_time):
+            is_open, msg = is_market_open()
+        self.assertTrue(is_open)
+
+    # SHOULD BE CLOSED 
+    # Monday 9:14 AM IST — one minute before open
+    def test_market_closed_at_914(self):
+        fake_time = self._make_ist_time(weekday=0, hour=9, minute=14)
+        with self._patch_time(fake_time):
+            is_open, msg = is_market_open()
+        self.assertFalse(is_open)
+
+    # Monday 3:31 PM IST — one minute after close
+    def test_market_closed_after_close(self):
+        fake_time = self._make_ist_time(weekday=0, hour=15, minute=31)
+        with self._patch_time(fake_time):
+            is_open, msg = is_market_open()
+        self.assertFalse(is_open)
+
+    # Weekend tests — market should be closed all day Saturday and Sunday
+    def test_market_closed_saturday(self):
+        fake_time = self._make_ist_time(weekday=5, hour=11, minute=0)
+        with self._patch_time(fake_time):
+            is_open, msg = is_market_open()
+        self.assertFalse(is_open)
+        self.assertIn("weekend", msg.lower())
+
+    # BUY/SELL BLOCKED OUTSIDE HOURS 
+    def test_buy_blocked_outside_market_hours(self):
+        fake_time = self._make_ist_time(weekday=6, hour=11, minute=0)  # Sunday
+        with self._patch_time(fake_time):
+            with self.assertRaises(InvalidOrderError) as ctx:
+                execute_buy(self.user, 'TCS', 1)
+        self.assertIn("closed", str(ctx.exception).lower())
+
+    def test_sell_blocked_outside_market_hours(self):
+        fake_time = self._make_ist_time(weekday=6, hour=11, minute=0)  # Sunday
+        with self._patch_time(fake_time):
+            with self.assertRaises(InvalidOrderError) as ctx:
+                execute_sell(self.user, 'TCS', 1)
+        self.assertIn("closed", str(ctx.exception).lower())
+
+    def test_limit_buy_blocked_outside_market_hours(self):
+        fake_time = self._make_ist_time(weekday=5, hour=10, minute=0)  # Saturday
+        with self._patch_time(fake_time):
+            with self.assertRaises(InvalidOrderError):
+                place_limit_buy(self.user, 'TCS', 1, Decimal('3800'))
+
+    def test_buy_works_during_market_hours(self):
+        fake_time = self._make_ist_time(weekday=0, hour=10, minute=0)  # Monday 10 AM
+        with self._patch_time(fake_time):
+            order = execute_buy(self.user, 'TCS', 1)
         self.assertEqual(order.status, Order.Status.EXECUTED)
