@@ -4,9 +4,7 @@ from django.db import models
 from django.conf import settings
 from trading.models import Stock
 
-
-# In your portfolio view or serializer:
-holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
+User = settings.AUTH_USER_MODEL
 
 
 class Holding(models.Model):
