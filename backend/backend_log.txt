@@ -32,3 +32,15 @@ Watching for file changes with StatReloader
 [11/Mar/2026 19:47:54] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
 [11/Mar/2026 19:47:54] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
 [11/Mar/2026 19:47:54] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 19:56:15] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:56:15] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:56:15] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 19:57:12] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:57:12] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:57:13] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 19:57:22] "GET /api/simulation/market-data/?scenario=gfc_2008_simulation.csv HTTP/1.1" 200 533856
+[11/Mar/2026 19:59:55] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:59:56] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 20:01:03] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 20:01:03] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 20:01:03] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
