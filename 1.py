@@ -3,7 +3,7 @@ import numpy as np
 
 np.random.seed(42)
 
-symbols = ["AAPL", "MSFT", "TSLA", "GOOG", "AMZN"]
+symbols = ["AAPL", "MSFT", "TSLA", "GOOG"]
 
 rows_per_symbol = 50000   # total rows = 250k
 
@@ -11,8 +11,7 @@ start_prices = {
     "AAPL":150,
     "MSFT":300,
     "TSLA":220,
-    "GOOG":130,
-    "AMZN":120
+    "GOOG":130
 }
 
 data = []
@@ -55,6 +54,6 @@ df = pd.DataFrame(
     columns=["symbol","timestamp","open","high","low","close","volume"]
 )
 
-df.to_csv("market_simulation_data.csv", index=False)
+df.to_csv("market_simulation_data2.csv", index=False)
 
 print("Dataset saved as market_simulation_data.csv")

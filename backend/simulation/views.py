@@ -5,15 +5,15 @@ from datetime import date
 from pathlib import Path
 import random
 
-from market_simulation.metrics.performance import compute_metrics
-from market_simulation.replay.price_store import InMemoryPriceStore, OHLC
-from market_simulation.strategy.comparison_runner import StrategyComparisonRunner
-from market_simulation.replay.trade_queue import ScheduledOrder, TradeQueue
-from market_simulation.snapshot.manager import SnapshotManager
-from market_simulation.events.bus import EventBus
-from market_simulation.portfolio.store import Portfolio
-from market_simulation.replay.engine import ReplayConfig, ReplayEngine
-from market_simulation.replay.time_state import TimeState
+from simulation.engine.metrics.performance import compute_metrics
+from simulation.engine.replay.price_store import InMemoryPriceStore, OHLC
+from simulation.engine.strategy.comparison_runner import StrategyComparisonRunner
+from simulation.engine.replay.trade_queue import ScheduledOrder, TradeQueue
+from simulation.engine.snapshot.manager import SnapshotManager
+from simulation.engine.events.bus import EventBus
+from simulation.engine.portfolio.store import Portfolio
+from simulation.engine.replay.engine import ReplayConfig, ReplayEngine
+from simulation.engine.replay.time_state import TimeState
 
 WORKSPACE_DIR = Path("/tmp/sim_snapshots")
 WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
