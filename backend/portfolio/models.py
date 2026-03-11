@@ -11,6 +11,7 @@ User = get_user_model()
 # User = get_user_model()
 # The following line was erroneous and removed:
 # holdings = TradingHolding.objects.filter(student=request.user).select_related('stock')
+User = settings.AUTH_USER_MODEL
 
 
 class Holding(models.Model):
