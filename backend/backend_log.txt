@@ -1,0 +1,34 @@
+Watching for file changes with StatReloader
+[11/Mar/2026 19:39:56] "GET /api/simulation/scenarios/ HTTP/1.1" 200 16
+[11/Mar/2026 19:39:56] "GET /api/simulation/scenarios/ HTTP/1.1" 200 16
+[11/Mar/2026 19:40:18] "GET /api/simulation/scenarios/ HTTP/1.1" 200 16
+[11/Mar/2026 19:40:18] "GET /api/simulation/scenarios/ HTTP/1.1" 200 16
+[11/Mar/2026 19:44:33] "HEAD /api/simulation/scenarios/ HTTP/1.1" 200 0
+[11/Mar/2026 19:44:43] "GET /api/simulation/scenarios/ HTTP/1.1" 200 16
+/home/kanishka/desis/project/grp-proj-desis/backend/simulation/market_data_view.py changed, reloading.
+Performing system checks...
+
+System check identified no issues (0 silenced).
+March 11, 2026 - 19:39:00
+Django version 6.0.3, using settings 'core.settings'
+Starting development server at http://127.0.0.1:8003/
+Quit the server with CONTROL-C.
+
+WARNING: This is a development server. Do not use it in a production setting. Use a production WSGI or ASGI server instead.
+For more information on production servers see: https://docs.djangoproject.com/en/6.0/howto/deployment/
+Watching for file changes with StatReloader
+[11/Mar/2026 19:45:07] "GET /api/simulation/scenarios/ HTTP/1.1" 200 74
+[11/Mar/2026 19:45:31] "GET /api/simulation/scenarios/ HTTP/1.1" 200 74
+[11/Mar/2026 19:45:31] "GET /api/simulation/scenarios/ HTTP/1.1" 200 74
+[11/Mar/2026 19:45:31] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 19:47:22] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:47:22] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:47:22] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 19:47:27] "GET /api/simulation/market-data/?scenario=market_simulation_data2.csv HTTP/1.1" 200 26226553
+[11/Mar/2026 19:47:36] "GET /api/simulation/market-data/?scenario=gfc_2008_simulation.csv HTTP/1.1" 200 533856
+[11/Mar/2026 19:47:51] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:47:51] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:47:51] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
+[11/Mar/2026 19:47:54] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:47:54] "GET /api/simulation/scenarios/ HTTP/1.1" 200 219
+[11/Mar/2026 19:47:54] "GET /api/simulation/market-data/?scenario=market_simulation_data.csv HTTP/1.1" 200 32598835
