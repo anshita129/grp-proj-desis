@@ -1,45 +1,74 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework import status
+
 from .models import AIInsight
-from .services import get_ai_feedback
+from .serializers import AIInsightSerializer
+from .services import get_rule_based_feedback
+from .ml import predict_user_behavior
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def ai_feedback(request):
-    # if you're using the "first user" trick, keep that logic here
-    # otherwise if auth is enabled, request.user will be real
+    user = request.user
 
-    u = request.user
-    data = get_ai_feedback(u)
+    try:
+        rule_data = get_rule_based_feedback(user)
+    except Exception as e:
+        return Response(
+            {"error": f"Rule-based feedback failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-    # Save to DB
-    AIInsight.objects.create(
-        user=u,
-        risk_profile=data["risk_profile"],
-        trade_count_last_7_days=data["trade_count_last_7_days"],
-        wallet_balance=data["wallet_balance"],
-        portfolio_concentration=data["portfolio_concentration"],
-        tips=data["tips"],
+    ml_data = predict_user_behavior(user)
+
+    final_tips = list(rule_data["tips"])
+
+    if ml_data.get("ml_available"):
+        final_tips.append(f"ML trader type detected: {ml_data['trader_type']}.")
+        if ml_data.get("is_anomaly"):
+            final_tips.append("Unusual behavior detected. Review your recent trades carefully.")
+    else:
+        final_tips.append("ML analysis is currently unavailable. Showing rule-based feedback only.")
+
+    summary = " | ".join(final_tips)
+
+    try:
+        insight = AIInsight.objects.create(
+            user=user,
+            risk_profile=rule_data["risk_profile"],
+            trader_type=ml_data.get("trader_type") if ml_data.get("ml_available") else None,
+            anomaly_detected=ml_data.get("is_anomaly", False) if ml_data.get("ml_available") else False,
+            anomaly_score=ml_data.get("anomaly_score") if ml_data.get("ml_available") else None,
+            summary=summary,
+        )
+    except Exception as e:
+        return Response(
+            {
+                "error": f"Insight save failed: {str(e)}",
+                "rule_based": rule_data,
+                "ml_based": ml_data,
+                "final_tips": final_tips,
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    return Response(
+        {
+            "rule_based": rule_data,
+            "ml_based": ml_data,
+            "final_tips": final_tips,
+            "insight_id": insight.id,
+        },
+        status=status.HTTP_200_OK
     )
 
-    return Response(data)
 
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def ai_history(request):
-    u = request.user
-    qs = AIInsight.objects.filter(user=u).order_by("-created_at")[:20]
-
-    data = [
-        {
-            "risk_profile": x.risk_profile,
-            "trade_count_last_7_days": x.trade_count_last_7_days,
-            "wallet_balance": float(x.wallet_balance),
-            "portfolio_concentration": float(x.portfolio_concentration),
-            "tips": x.tips,
-            "created_at": x.created_at.isoformat(),
-        }
-        for x in qs
-    ]
-    return Response(data)
+    qs = AIInsight.objects.filter(user=request.user).order_by("-created_at")
+    ser = AIInsightSerializer(qs, many=True)
+    return Response(ser.data, status=status.HTTP_200_OK)

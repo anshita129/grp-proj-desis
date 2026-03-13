@@ -1,73 +1,78 @@
-from django.utils import timezone
 from datetime import timedelta
+from django.utils import timezone
 
-# Import your trading/portfolio models
-from trading.models import TradeLog, Wallet
+from trading.models import TradeLog
 from portfolio.models import Holding
 
-def get_ai_feedback(user):
-    
 
-    now = timezone.now()
-    last_7_days = now - timedelta(days=7)
+def safe_float(x, default=0.0):
+    try:
+        if x is None:
+            return default
+        return float(x)
+    except (TypeError, ValueError):
+        return default
 
-    # 1) Trades in last 7 days
-    #recent_trades = TradeLog.objects.filter(user=user, created_at__gte=last_7_days)
-    recent_trades = TradeLog.objects.filter(student=user, executed_at__gte=last_7_days)
-    trade_count_7d = recent_trades.count()
 
-    # 2) Wallet balance (if wallet exists)
-    wallet = Wallet.objects.filter(student=user).first()
-    balance = float(wallet.balance) if wallet else 0.0
+def get_latest_wallet_balance(user):
+    last_trade = TradeLog.objects.filter(student=user).order_by("-executed_at").first()
+    if not last_trade:
+        return 0.0
+    return safe_float(getattr(last_trade, "wallet_balance_after", 0.0))
 
-    # 3) Portfolio concentration (top holding %)
-    holdings = Holding.objects.filter(user=user).select_related("stock")
-    total_value = 0.0
-    max_value = 0.0
-    top_stock = None
+
+def get_rule_based_feedback(user):
+    last_7_days = timezone.now() - timedelta(days=7)
+
+    trades_last_7_days = TradeLog.objects.filter(
+        student=user,
+        executed_at__gte=last_7_days
+    )
+    holdings = Holding.objects.filter(user=user)
+
+    trade_count_last_7_days = trades_last_7_days.count()
+    wallet_balance = get_latest_wallet_balance(user)
+
+    portfolio_value = 0.0
+    max_holding_value = 0.0
 
     for h in holdings:
-        # If your Stock model has "price" field, use it; otherwise treat value as quantity only
-        p = getattr(h.stock, "price", 1)
-        v = float(h.quantity) * float(p)
-        total_value += v
-        if v > max_value:
-            max_value = v
-            top_stock = getattr(h.stock, "symbol", str(h.stock))
+        qty = safe_float(getattr(h, "quantity", 0.0))
+        avg_buy_price = safe_float(getattr(h, "avg_buy_price", 0.0))
+        value = qty * avg_buy_price
+        portfolio_value += value
+        if value > max_holding_value:
+            max_holding_value = value
 
-    concentration = (max_value / total_value) if total_value > 0 else 0.0
+    portfolio_concentration = (
+        max_holding_value / portfolio_value if portfolio_value > 0 else 0.0
+    )
 
-    # 4) Simple risk profile
-    if trade_count_7d >= 20:
-        risk_profile = "Aggressive"
-    elif trade_count_7d >= 8:
+    if trade_count_last_7_days < 5 and portfolio_concentration < 0.4:
+        risk_profile = "Conservative"
+    elif trade_count_last_7_days < 15 and portfolio_concentration < 0.6:
         risk_profile = "Balanced"
     else:
-        risk_profile = "Conservative"
+        risk_profile = "Aggressive"
 
-    # 5) Generate tips (the “AI feedback”)
     tips = []
 
-    if trade_count_7d >= 15:
-        tips.append("You are trading very frequently. Consider setting a daily trade limit so you don’t overtrade.")
-    elif trade_count_7d == 0:
-        tips.append("No trades in the last 7 days. Try paper trading small positions to build confidence.")
+    if portfolio_concentration > 0.6:
+        tips.append("Your portfolio is highly concentrated. Consider diversifying into more assets.")
 
-    if concentration >= 0.60:
-        tips.append(f"Your portfolio is highly concentrated in {top_stock}. Consider diversifying to reduce risk.")
-    elif total_value == 0:
-        tips.append("You currently have no holdings. Add 1-2 test trades to start building a portfolio.")
+    if trade_count_last_7_days > 20:
+        tips.append("You are trading very frequently. Try to avoid overtrading.")
 
-    if balance <= 0:
-        tips.append("Your wallet balance is low. Add dummy funds or reduce position sizes.")
+    if wallet_balance < 1000:
+        tips.append("Your available balance is low. Plan your next trades carefully.")
 
     if not tips:
-        tips.append("Your trading activity looks stable. Keep tracking your risk and position sizing.")
+        tips.append("Your current trading behavior looks stable. Keep monitoring your risk exposure.")
 
     return {
+        "trade_count_last_7_days": trade_count_last_7_days,
+        "wallet_balance": wallet_balance,
+        "portfolio_concentration": portfolio_concentration,
         "risk_profile": risk_profile,
-        "trade_count_last_7_days": trade_count_7d,
-        "wallet_balance": balance,
-        "portfolio_concentration": round(concentration, 2),
         "tips": tips,
     }
