@@ -1,0 +1,25 @@
+Summary of work done for the interactive market simulation:
+
+Backend (Django):
+- Added `simulation/urls.py` with a route for `InteractiveSimulationView`.
+- Implemented `InteractiveSimulationView` in `simulation/views.py` to handle `start`, `advance`, and `trade` actions, using `SnapshotManager` for state persistence.
+- Updated `core/settings.py`: installed `django-cors-headers`, added CORS middleware, set `CORS_ALLOW_ALL_ORIGINS = True`, and switched the default DB to SQLite for easy local development.
+- Fixed `portfolio/models.py`: removed stray query, added proper `User` import via `get_user_model()`, imported the `Stock` model, and cleaned up the `Holding` model.
+- Ran migrations; all apps (`users`, `trading`, `portfolio`, etc.) now have tables in `db.sqlite3`.
+- Verified the API: `POST /api/simulation/interactive/` with `{ "action": "start" }` returns a snapshot ID; `POST` with `{ "action": "advance", "snapshot_id": "..." }` advances one day and returns updated portfolio data.
+
+Frontend:
+- Created `frontend/interactive.html` with Start, Advance, Buy, and Sell controls that call the interactive API via `fetch`.
+
+Demo scripts:
+- Added `run_market_sim.py` (demo runner) and `simulate_live_dashboard.py` (live dashboard demo using `rich.live`).
+
+Version control:
+- Staged all changes, committed with message "added interactive simulation", and pushed to GitHub.
+
+You can now run:
+```
+python manage.py runserver 8003   # start Django API
+python -m http.server 3000       # serve the frontend UI
+```
+and open `http://localhost:3000/interactive.html` to interact with the simulation.
