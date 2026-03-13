@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import PriceHistoryGraph from '../components/PriceHistoryGraph';
 
 const MARKET_DATA_URL = "http://127.0.0.1:8003/api/simulation/market-data/";
 const SCENARIOS_URL = "http://127.0.0.1:8003/api/simulation/scenarios/";
@@ -376,11 +377,27 @@ function SimulationPage() {
             const bgGlow = isDown ? 'bg-red-500/5' : 'bg-emerald-500/5';
 
             return (
-              <div key={`trade-${sym}`} className={`relative bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl transition-all duration-300 hover:border-slate-500 overflow-hidden ${bgGlow}`}>
+              <div key={`trade-${sym}`} className={`relative bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl transition-all duration-300 hover:border-slate-500 overflow-hidden group ${bgGlow}`}>
                 {/* Background decorative element */}
                 <div className={`absolute -right-20 -top-20 w-64 h-64 rounded-full blur-3xl opacity-20 ${isDown ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
 
-                <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
+                {/* Hover Graph Overlay */}
+                <div className="absolute inset-0 bg-slate-900/95 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20 flex flex-col p-6 pointer-events-none">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-white font-bold tracking-widest uppercase text-sm">{sym} Trend</span>
+                    <span className={`font-mono text-sm font-bold ${colorClass}`}>${currentPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex-1 w-full relative">
+                    <PriceHistoryGraph
+                      marketData={marketData}
+                      currentTick={currentTick}
+                      symbol={sym}
+                      isDown={isDown}
+                    />
+                  </div>
+                </div>
+
+                <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start mb-6 gap-4 group-hover:opacity-10 transition-opacity duration-300">
                   <div>
                     <h2 className="text-3xl font-black tracking-tight text-white mb-1">{sym}</h2>
                     <div className="flex items-center gap-3">
@@ -398,7 +415,7 @@ function SimulationPage() {
                   </div>
                 </div>
 
-                <div className="relative z-10 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                <div className="relative z-30 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
                   <div className="flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
