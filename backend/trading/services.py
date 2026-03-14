@@ -3,6 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 from .models import Wallet, Stock, Order, Holding, TradeLog, LimitOrder
 import pytz
+import uuid
 
 # CUSTOM EXCEPTIONS
 # These are custom error types we raise so views.py can catch them specifically
@@ -19,12 +20,18 @@ class StockNotFoundError(Exception):
     pass  # raised when symbol like "XYZ" doesn't exist in our Stock table
 
 class InvalidOrderError(Exception):
-    pass  # raised when input is bad — empty, negative quantity, etc.
+    pass  # raised when input is bad - empty, negative quantity, etc.
 
 class OrderCancellationError(Exception):
     pass  # raised when trying to cancel an order that can't be cancelled
 
 def is_market_open():
+    '''Checks if market is currently open based on IST time and NSE hours.'''
+    
+    # for testing, we can keep this as True so that market stays open, else Make it false 
+    if True:
+        return True, "Market open (dev bypass)"
+
     ist = pytz.timezone('Asia/Kolkata')
     now = timezone.now().astimezone(ist)
     
@@ -39,7 +46,7 @@ def is_market_open():
     if now < market_open:
         return False, f"Market opens at 9:15 AM IST"
     if now > market_close:
-        return False, f"Market closed — opens tomorrow 9:15 AM IST"
+        return False, f"Market closed - opens tomorrow 9:15 AM IST"
     
     return True, "Market open"
 
@@ -73,7 +80,7 @@ def execute_buy(student, symbol: str, quantity: int, idempotency_key=None ) -> O
     All steps happen inside one atomic transaction — if anything fails,
     everything is rolled back automatically.
     """
-    # Check market hours first — before any DB query
+    # Check market hours first - before any DB query
     is_open, message = is_market_open()
     if not is_open:
         raise InvalidOrderError(message)
@@ -81,12 +88,9 @@ def execute_buy(student, symbol: str, quantity: int, idempotency_key=None ) -> O
     # validate input — raises InvalidOrderError if bad
     symbol = validate_order_input(symbol, quantity)
 
-
     # open atomic transaction - any exception raised in this block will roll back all DB changes automatically(postgreSQL) 
     with transaction.atomic():
-
-        # check for idempotent order — if idempotency_key is provided, and an order with same key exists for this student, return that instead of creating a new one. 
-        # This prevents duplicate orders if client retries due to network issues. 
+        # check for idempotent order - if idempotency_key is provided, and an order with same key exists for this student, return that instead of creating a new one. 
         # If no idempotency_key or no existing order, proceed to create a new one as usual.
         if idempotency_key:
             existing = Order.objects.filter(
@@ -97,11 +101,10 @@ def execute_buy(student, symbol: str, quantity: int, idempotency_key=None ) -> O
             if existing:
                 return existing
         
-
-        # lock the wallet row with select_for_update — prevents race conditions
+        # lock the wallet row with select_for_update - prevents race conditions
         wallet = Wallet.objects.select_for_update().get(student=student)
 
-        # fetch the stock — raise error if symbol doesn't exist
+        # fetch the stock - raise error if symbol doesn't exist
         try:
             stock = Stock.objects.get(symbol=symbol)
         except Stock.DoesNotExist:
@@ -116,29 +119,31 @@ def execute_buy(student, symbol: str, quantity: int, idempotency_key=None ) -> O
             raise InsufficientFundsError(
                 f"Need {total_value}, but wallet has {wallet.balance}"
             )
-
+        
         balance_before = wallet.balance
-        # create the order with PENDING status first, incase something crashes 
 
+        # return the original order, don't create a new one if it exists 
         if idempotency_key:
             existing = Order.objects.filter(idempotency_key=idempotency_key).first()
             if existing:
-                return existing  # return the original order, don't create a new one
+                return existing  
             
-        order = Order.objects.create(
-            student=student,
-            stock=stock,
-            order_type=Order.OrderType.BUY,
-            quantity=quantity,
-            price_at_order=price,
-            total_value=total_value,
-            status=Order.Status.PENDING, 
-            #idempotency_key=idempotency_key
+        # create Order
+        order, created = Order.objects.get_or_create(
+            idempotency_key=idempotency_key or uuid.uuid4(),
+            defaults={
+                "student": student,
+                "stock": stock,
+                "order_type": Order.OrderType.BUY,
+                "quantity": quantity,
+                "price_at_order": price,
+                "total_value": total_value,
+                "status": Order.Status.PENDING,
+            }
         )
-     
-        if idempotency_key:
-            order.idempotency_key = idempotency_key
-            order.save(update_fields=['idempotency_key'])
+
+        if not created:
+            return order  # duplicate request — return original order
 
         # deduct wallet balance
         wallet.balance -= total_value
@@ -231,19 +236,22 @@ def execute_sell(student, symbol: str, quantity: int, idempotency_key=None) -> O
         total_value    = price*quantity
         balance_before = wallet.balance
 
-        order = Order.objects.create(
-            student=student, stock=stock,
-            order_type=Order.OrderType.SELL,
-            quantity=quantity,
-            price_at_order=price,
-            total_value=total_value,
-            status=Order.Status.PENDING, 
-            #idempotency_key=idempotency_key
+        # create Order
+        order, created = Order.objects.get_or_create(
+            idempotency_key=idempotency_key or uuid.uuid4(),
+            defaults={
+                "student": student,
+                "stock": stock,
+                "order_type": Order.OrderType.SELL,
+                "quantity": quantity,
+                "price_at_order": price,
+                "total_value": total_value,
+                "status": Order.Status.PENDING,
+            }
         )
 
-        if idempotency_key:
-            order.idempotency_key = idempotency_key
-            order.save(update_fields=['idempotency_key'])
+        if not created:
+            return order  # duplicate request — return original order
 
         # Credit wallet
         wallet.balance += total_value
@@ -273,18 +281,14 @@ def execute_sell(student, symbol: str, quantity: int, idempotency_key=None) -> O
         return order
 
 # LIMIT BUY 
-def place_limit_buy(student, symbol: str, quantity: int, limit_price: Decimal, idempotency_key=None) -> Order:
+def place_limit_buy(student, symbol: str, quantity: int, limit_price: Decimal,expires_at=None, idempotency_key=None) -> Order:
     """
     Places a limit buy order — only executes when price <= limit_price.
     Money is reserved upfront so student can't spend it elsewhere.
     If price is already at or below limit, executes immediately.
     Otherwise sits as PENDING.
     """
-    # Check market hours first — before any DB query
-    is_open, message = is_market_open()
-    if not is_open:
-        raise InvalidOrderError(message)
-    
+   
     symbol = validate_order_input(symbol, quantity)
 
     if limit_price <= 0:
@@ -297,7 +301,6 @@ def place_limit_buy(student, symbol: str, quantity: int, limit_price: Decimal, i
                 student=student,
                 idempotency_key=idempotency_key
             ).first()
-
             if existing:
                 return existing
         
@@ -322,26 +325,27 @@ def place_limit_buy(student, symbol: str, quantity: int, limit_price: Decimal, i
         wallet.save(update_fields=['balance', 'updated_at'])
 
         # create order 
-
-        order = Order.objects.create(
-            student=student,
-            stock=stock,
-            order_type=Order.OrderType.BUY,
-            quantity=quantity,
-            price_at_order=limit_price,
-            total_value=total_value,
-            status=Order.Status.PENDING, 
-            #idempotency_key=idempotency_key
+        order, created = Order.objects.get_or_create(
+            idempotency_key=idempotency_key or uuid.uuid4(),
+            defaults={
+                "student": student,
+                "stock": stock,
+                "order_type": Order.OrderType.BUY,
+                "quantity": quantity,
+                "price_at_order": limit_price,
+                "total_value": limit_price * quantity,
+                "status": Order.Status.PENDING,
+            }
         )
 
-        if idempotency_key:
-            order.idempotency_key = idempotency_key
-            order.save(update_fields=['idempotency_key'])
-
+        if not created:
+            return order  # duplicate request — return original order
+    
         # Create a LimitOrder linked to this order, so we know it's a limit order and can check its condition later
         LimitOrder.objects.create(
             order=order,
-            limit_price=limit_price
+            limit_price=limit_price, 
+            expires_at=expires_at
         )
 
         # If price already satisfies condition — execute immediately
@@ -352,17 +356,12 @@ def place_limit_buy(student, symbol: str, quantity: int, limit_price: Decimal, i
 
 
 # LIMIT SELL 
-def place_limit_sell(student, symbol: str, quantity: int, limit_price: Decimal, idempotency_key=None) -> Order:
+def place_limit_sell(student, symbol: str, quantity: int, limit_price: Decimal,expires_at=None,idempotency_key=None) -> Order:
     """
     Places a limit sell order — only executes when price >= limit_price.
     No money reserved.
     """
 
-    # Check market hours first — before any DB query
-    is_open, message = is_market_open()
-    if not is_open:
-        raise InvalidOrderError(message)
-    
     symbol = validate_order_input(symbol, quantity)
 
     if limit_price <= 0:
@@ -370,15 +369,6 @@ def place_limit_sell(student, symbol: str, quantity: int, limit_price: Decimal, 
 
     with transaction.atomic():
 
-        if idempotency_key:
-            existing = Order.objects.filter(
-                student=student,
-                idempotency_key=idempotency_key
-            ).first()
-
-            if existing:
-                return existing
-        
         # find stock 
         try:
             stock = Stock.objects.get(symbol=symbol)
@@ -397,27 +387,37 @@ def place_limit_sell(student, symbol: str, quantity: int, limit_price: Decimal, 
             raise InsufficientHoldingsError(
                 f"You have {holding.quantity} shares, cannot place limit sell for {quantity}"
             )
+    
+        # Reserve shares upfront - prevents placing multiple sells on same shares
+        holding.quantity -= quantity
+        if holding.quantity == 0:
+            holding.delete()
+        else:
+            holding.save(update_fields=['quantity', 'updated_at'])
 
         # create Order
-        order = Order.objects.create(
-            student=student,
-            stock=stock,
-            order_type=Order.OrderType.SELL,
-            quantity=quantity,
-            price_at_order=limit_price,
-            total_value=limit_price * quantity,
-            status=Order.Status.PENDING, 
-            #idempotency_key=idempotency_key
+        order, created = Order.objects.get_or_create(
+            idempotency_key=idempotency_key or uuid.uuid4(),
+            defaults={
+                "student": student,
+                "stock": stock,
+                "order_type": Order.OrderType.SELL,
+                "quantity": quantity,
+                "price_at_order": limit_price,
+                "total_value": limit_price * quantity,
+                "status": Order.Status.PENDING,
+            }
         )
 
-        if idempotency_key:
-            order.idempotency_key = idempotency_key
-            order.save(update_fields=['idempotency_key'])
+        if not created:
+            return order  # duplicate request - return original order
+
 
         # Create LimitOrder linked to this order
         LimitOrder.objects.create(
             order=order,
-            limit_price=limit_price
+            limit_price=limit_price, 
+            expires_at=expires_at
         )
 
         # Check if price already satisfies condition, if so execute immediately
@@ -500,13 +500,6 @@ def _execute_limit_sell(order, stock, holding, wallet):
     total_value = price * order.quantity
     balance_before = wallet.balance
 
-    # update holdings
-    holding.quantity -= order.quantity
-    if holding.quantity == 0:
-        holding.delete()
-    else:
-        holding.save(update_fields=['quantity', 'updated_at'])
-
     # update wallet balance
     wallet.balance += total_value
     wallet.save(update_fields=['balance', 'updated_at'])
@@ -536,8 +529,19 @@ def check_limit_orders():
     Also auto-cancels expired limit orders.
     Returns count of orders executed this run.
     """
+    # if expired then cancel the order and refund if it was a limit buy (money was reserved)
+    expired = LimitOrder.objects.filter(
+    order__status=Order.Status.PENDING,
+    expires_at__lt=timezone.now()
+    ).select_related('order__student')
 
-    # Get all PENDING limit orders with related data pre-fetched (__ foreign key) 
+    for limit_order in expired:
+        try:
+            cancel_order(limit_order.order.student, limit_order.order.id)
+        except Exception as e:
+            continue
+
+    # Get all PENDING limit orders with related data pre-fetched 
     pending_limits = LimitOrder.objects.filter(
         order__status=Order.Status.PENDING
     ).select_related('order__stock', 'order__student')
@@ -560,8 +564,9 @@ def check_limit_orders():
                 wallet = Wallet.objects.select_for_update().get(student=order.student)
                 holding = Holding.objects.select_for_update().filter(
                     student=order.student, stock=stock
-                ).first()  # .first() returns None if not found 
+                ).first() 
 
+                stock = Stock.objects.select_for_update().get(symbol=order.stock.symbol)
                 if order.order_type == Order.OrderType.BUY:
                     # has current price has dropped to or below limit
                     if stock.current_price <= limit_order.limit_price:
@@ -590,7 +595,8 @@ def check_limit_orders():
     for limit_order in expired:
         try:
             cancel_order(limit_order.order.student, limit_order.order.id)
-        except Exception:
+        except Exception as e:
+            print(f'LIMIT ORDER ERROR: {e}')
             continue
 
     return executed
@@ -629,6 +635,19 @@ def cancel_order(student, order_id) -> Order:
             wallet.balance += order.total_value 
             wallet.save(update_fields=['balance', 'updated_at'])
 
+        # refund the shares back to holding if it was a limit sell, as we reserved the shares upfront
+        is_limit_sell = (
+            order.order_type == Order.OrderType.SELL and
+            hasattr(order, 'limitorder')
+        )
+        if is_limit_sell:
+            holding, _ = Holding.objects.get_or_create(
+                student=student, stock=order.stock,
+                defaults={'quantity': 0, 'avg_buy_price': order.price_at_order}
+            )
+            holding.quantity += order.quantity
+            holding.save(update_fields=['quantity', 'updated_at'])
+            
         # update status to cancelled
         order.status = Order.Status.CANCELLED
         order.save(update_fields=['status'])

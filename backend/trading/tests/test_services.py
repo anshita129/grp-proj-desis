@@ -359,11 +359,13 @@ class TradingTestCase(TransactionTestCase):
                 execute_sell(self.user, 'TCS', 1)
         self.assertIn("closed", str(ctx.exception).lower())
 
-    def test_limit_buy_blocked_outside_market_hours(self):
+    def test_limit_buy_allowed_outside_market_hours(self):
+        """Limit orders can be placed even when market is closed"""
         fake_time = self._make_ist_time(weekday=5, hour=10, minute=0)  # Saturday
         with self._patch_time(fake_time):
-            with self.assertRaises(InvalidOrderError):
-                place_limit_buy(self.user, 'TCS', 1, Decimal('3800'))
+            # Should NOT raise — limit orders work 24/7
+            order = place_limit_buy(self.user, 'TCS', 1, Decimal('3800'))
+        self.assertEqual(order.status, Order.Status.PENDING)
 
     def test_buy_works_during_market_hours(self):
         fake_time = self._make_ist_time(weekday=0, hour=10, minute=0)  # Monday 10 AM
