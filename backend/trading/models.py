@@ -57,7 +57,7 @@ class Order(models.Model):
     failure_reason = models.TextField(blank=True)
     created_at     = models.DateTimeField(auto_now_add=True)
     executed_at    = models.DateTimeField(null=True, blank=True)
-
+    idempotency_key = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)    
     class Meta:
         indexes = [models.Index(fields=['student', 'created_at'])]
 
@@ -99,3 +99,8 @@ class TradeLog(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['student', '-executed_at'])]
+
+class LimitOrder(models.Model):
+    order       = models.OneToOneField(Order, on_delete=models.CASCADE)
+    limit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    expires_at  = models.DateTimeField(null=True, blank=True)  # auto-cancel after X days

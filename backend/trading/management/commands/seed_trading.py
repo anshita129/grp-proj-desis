@@ -17,16 +17,18 @@ class Command(BaseCommand):
     help = 'Seed stocks and create wallets for all users'
 
     def handle(self, *args, **kwargs):
+        # seed stocks from the predefined list, using update_or_create to avoid duplicates if run multiple times
         for symbol, name, sector, price in STOCKS:
             Stock.objects.update_or_create(
                 symbol=symbol,
                 defaults={'company_name': name, 'sector': sector, 'current_price': price}
             )
-        self.stdout.write(self.style.SUCCESS(f'✅ Seeded {len(STOCKS)} stocks'))
+        self.stdout.write(self.style.SUCCESS(f'Seeded {len(STOCKS)} stocks'))
 
+        # create wallets for all existing users if they don't already have one
         for user in User.objects.all():
             Wallet.objects.get_or_create(
                 student=user,
                 defaults={'balance': Decimal('100000.00')}
             )
-        self.stdout.write(self.style.SUCCESS('✅ Wallets created'))
+        self.stdout.write(self.style.SUCCESS('Wallets created'))
