@@ -35,24 +35,37 @@ def get_portfolio_summary(user):
 
 def get_holdings_details(user):
     holdings = Holding.objects.filter(student=user)
+    from django.utils import timezone
+    from datetime import timedelta
 
     data = []
 
     for h in holdings:
         current_price = h.stock.current_price
-
         invested_value = h.quantity * h.avg_buy_price
         current_value = h.quantity * current_price
         profit_loss = current_value - invested_value
+
+        # 30 day average
+        thirty_days_ago = timezone.now().date() - timedelta(days=30)
+        prices = DailyStockPrice.objects.filter(
+            stock=h.stock,
+            date__gte=thirty_days_ago
+        ).values_list('close_price', flat=True)
+
+        avg_30 = sum(prices) / len(prices) if prices else None
+        above_trend = current_price > avg_30 if avg_30 else None
 
         data.append({
             "symbol": h.stock.symbol,
             "quantity": h.quantity,
             "avg_buy_price": h.avg_buy_price,
-            "current_price": current_price,
+            "current_price": float(current_price),
             "invested_value": invested_value,
             "current_value": current_value,
             "profit_loss": profit_loss,
+            "avg_30_day": round(float(avg_30), 2) if avg_30 else None,
+            "above_trend": above_trend
         })
 
     return data
@@ -312,3 +325,269 @@ def get_order_analytics(user):
         metrics['avg_time_to_execution'] = str(avg_time) if avg_time else None
     
     return metrics
+
+def get_portfolio_total_value_history(user, days=30):
+    """
+    Returns daily TOTAL portfolio value for last N days
+    Format: [{"date": "2026-03-04", "total_value": 25592.50}, ...]
+    """
+    from datetime import timedelta, date
+    from django.utils import timezone
+    from django.db.models import Sum, F
+    
+    end_date = timezone.now().date()
+    start_date = end_date - timedelta(days=days)
+    
+    # Get holdings snapshot
+    holdings = Holding.objects.filter(
+        student=user,
+        quantity__gt=0
+    ).select_related('stock').values(
+        'stock_id', 
+        'quantity'
+    )
+    
+    # Get daily prices for all holding stocks
+    prices = DailyStockPrice.objects.filter(
+        stock_id__in=[h['stock_id'] for h in holdings],
+        date__range=[start_date, end_date]
+    ).values('date', 'stock_id', 'close_price')
+    
+    # Build daily total values
+    daily_totals = {}
+    for price in prices:
+        date_str = price['date'].strftime('%Y-%m-%d')
+        if date_str not in daily_totals:
+            daily_totals[date_str] = {}
+        daily_totals[date_str][price['stock_id']] = price['close_price']
+    
+    # Calculate portfolio value each day
+    history = []
+    for day in range(days + 1):
+        target_date = end_date - timedelta(days=day)
+        date_str = target_date.strftime('%Y-%m-%d')
+        
+        daily_value = 0
+        for holding in holdings:
+            stock_id = holding['stock_id']
+            price = daily_totals.get(date_str, {}).get(stock_id)
+            if price:
+                daily_value += holding['quantity'] * price
+        
+        history.append({
+            'date': date_str,
+            'total_value': round(daily_value, 2)
+        })
+    
+    return sorted(history, key=lambda x: x['date'])
+
+
+def get_risk_score(user):
+    """
+    Scores portfolio risk 0-100 based on:
+    - Concentration (single stock > 40% = high risk)
+    - Sector exposure (single sector > 60% = high risk)
+    - Volatility (P&L swings)
+    - Over-trading behavior
+    """
+    holdings = Holding.objects.filter(student=user).select_related('stock')
+    if not holdings.exists():
+        return {"score": 0, "level": "Unknown", "flags": []}
+
+    total_value = sum(h.quantity * h.stock.current_price for h in holdings)
+    if total_value == 0:
+        return {"score": 0, "level": "Unknown", "flags": []}
+
+    score = 0
+    flags = []
+
+    # 1. Concentration Risk — single stock
+    for h in holdings:
+        stock_value = h.quantity * h.stock.current_price
+        percent = (stock_value / total_value) * 100
+        if percent > 60:
+            score += 40
+            flags.append({
+                "type": "CONCENTRATION",
+                "severity": "HIGH",
+                "message": f"{h.stock.symbol} is {round(percent, 1)}% of your portfolio — very concentrated!"
+            })
+        elif percent > 40:
+            score += 20
+            flags.append({
+                "type": "CONCENTRATION",
+                "severity": "MEDIUM",
+                "message": f"{h.stock.symbol} is {round(percent, 1)}% of your portfolio — consider diversifying"
+            })
+
+    # 2. Sector Exposure Risk
+    sector_values = {}
+    for h in holdings:
+        sector = h.stock.sector or "Unknown"
+        sector_values[sector] = sector_values.get(sector, 0) + (h.quantity * h.stock.current_price)
+
+    for sector, value in sector_values.items():
+        percent = (value / total_value) * 100
+        if percent > 70:
+            score += 30
+            flags.append({
+                "type": "SECTOR_EXPOSURE",
+                "severity": "HIGH",
+                "message": f"{round(percent, 1)}% in {sector} sector — dangerously concentrated!"
+            })
+        elif percent > 50:
+            score += 15
+            flags.append({
+                "type": "SECTOR_EXPOSURE",
+                "severity": "MEDIUM",
+                "message": f"{round(percent, 1)}% in {sector} sector — consider adding other sectors"
+            })
+
+    # 3. Number of stocks (< 3 = risky)
+    if holdings.count() < 3:
+        score += 20
+        flags.append({
+            "type": "LOW_DIVERSIFICATION",
+            "severity": "MEDIUM",
+            "message": f"Only {holdings.count()} stock(s) in portfolio — low diversification"
+        })
+
+    score = min(score, 100)
+
+    if score >= 70:
+        level = "HIGH"
+    elif score >= 40:
+        level = "MEDIUM"
+    else:
+        level = "LOW"
+
+    return {
+        "score": score,
+        "level": level,
+        "flags": flags
+    }
+
+def get_diversification_index(user):
+    """
+    Returns a diversification score 0-100
+    Based on number of sectors, number of stocks, and balance
+    """
+    holdings = Holding.objects.filter(student=user).select_related('stock')
+    if not holdings.exists():
+        return {"score": 0, "grade": "F", "message": "No holdings found"}
+
+    total_value = sum(h.quantity * h.stock.current_price for h in holdings)
+    num_stocks = holdings.count()
+
+    sector_values = {}
+    for h in holdings:
+        sector = h.stock.sector or "Unknown"
+        sector_values[sector] = sector_values.get(sector, 0) + (h.quantity * h.stock.current_price)
+
+    num_sectors = len(sector_values)
+
+    # Stock diversity score (max 40 points)
+    stock_score = min(num_stocks * 10, 40)
+
+    # Sector diversity score (max 40 points)
+    sector_score = min(num_sectors * 15, 40)
+
+    # Balance score — penalize if one sector > 60% (max 20 points)
+    max_sector_percent = max((v / total_value) * 100 for v in sector_values.values())
+    if max_sector_percent < 40:
+        balance_score = 20
+    elif max_sector_percent < 60:
+        balance_score = 10
+    else:
+        balance_score = 0
+
+    total_score = stock_score + sector_score + balance_score
+
+    if total_score >= 80:
+        grade = "A"
+        message = "Well diversified portfolio!"
+    elif total_score >= 60:
+        grade = "B"
+        message = "Decent diversification, room to improve"
+    elif total_score >= 40:
+        grade = "C"
+        message = "Moderate risk — add more sectors"
+    else:
+        grade = "D"
+        message = "Poorly diversified — high concentration risk"
+
+    return {
+        "score": total_score,
+        "grade": grade,
+        "message": message,
+        "num_stocks": num_stocks,
+        "num_sectors": num_sectors,
+        "dominant_sector": max(sector_values, key=sector_values.get),
+        "dominant_sector_percent": round(max_sector_percent, 1)
+    }
+
+def get_behavioral_flags(user):
+    """
+    Detects emotional/risky trading patterns:
+    - Panic selling (multiple sells in one day after price drop)
+    - Over-trading (too many trades in a day)
+    - FOMO buying (buying after big price spike)
+    - Revenge trading (buy immediately after a loss)
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+
+    three_months_ago = timezone.now() - timedelta(days=90)
+    trades = TradeLog.objects.filter(
+        student=user,
+        executed_at__gte=three_months_ago
+    ).order_by('executed_at')
+
+    flags = []
+
+    if not trades.exists():
+        return {"flags": [], "flag_count": 0}
+
+    # 1. Over-trading — more than 5 trades in a single day
+    from django.db.models import Count
+    daily_counts = trades.values('executed_at__date').annotate(
+        count=Count('id')
+    ).filter(count__gt=5)
+
+    for day in daily_counts:
+        flags.append({
+            "type": "OVER_TRADING",
+            "severity": "MEDIUM",
+            "date": str(day['executed_at__date']),
+            "message": f"{day['count']} trades on {day['executed_at__date']} — possible over-trading"
+        })
+
+    # 2. Panic selling — 2+ sells in one day
+    daily_sells = trades.filter(order_type='SELL').values(
+        'executed_at__date'
+    ).annotate(count=Count('id')).filter(count__gte=2)
+
+    for day in daily_sells:
+        flags.append({
+            "type": "PANIC_SELLING",
+            "severity": "HIGH",
+            "date": str(day['executed_at__date']),
+            "message": f"Multiple sells on {day['executed_at__date']} — possible panic selling"
+        })
+
+    # 3. Buy/Sell ratio imbalance — too many buys vs sells
+    total = trades.count()
+    buy_count = trades.filter(order_type='BUY').count()
+    buy_ratio = (buy_count / total * 100) if total > 0 else 0
+
+    if buy_ratio > 85:
+        flags.append({
+            "type": "NO_EXIT_STRATEGY",
+            "severity": "MEDIUM",
+            "message": f"{round(buy_ratio, 1)}% of trades are BUYs — consider having an exit strategy"
+        })
+
+    return {
+        "flags": flags,
+        "flag_count": len(flags)
+    }

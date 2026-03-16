@@ -1,5 +1,7 @@
 import { createBrowserRouter } from "react-router-dom"
 
+
+import HomePage from "./shared/components/HomePage" 
 import LearningPage from "./modules/learning/pages/LearningPage"
 import TradingPage from "./modules/trading/pages/TradingPage"
 import PortfolioPage from "./modules/portfolio/pages/PortfolioPage"
@@ -8,7 +10,7 @@ import SimulationPage from "./modules/simulation/pages/SimulationPage"
 import LoginPage from "./modules/users/pages/LoginPage"
 
 const router = createBrowserRouter([
-  { path: "/",          element: <div className="p-8 text-2xl">Home — GRP DESIS</div> },
+  { path: "/",          element: <HomePage /> },
   { path: "/login",     element: <LoginPage /> },
   { path: "/learning",  element: <LearningPage /> },
   { path: "/trading",   element: <TradingPage /> },
