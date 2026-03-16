@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'learning',
     'simulation',
     'ai_engine',
+    'rest_framework.authtoken',
     'rest_framework',
     'corsheaders',
 ]
@@ -63,8 +64,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # dev only
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']  # Vite dev server
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+]
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

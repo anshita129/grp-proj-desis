@@ -169,3 +169,28 @@ class StockListView(APIView):
             "current_price": float(s.current_price),
             "last_updated":  s.last_updated.isoformat()
         } for s in stocks])
+
+class CancelOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, order_id):
+        order = get_object_or_404(Order, id=order_id, student=request.user)
+        if order.status == Order.Status.PENDING:
+            order.status = Order.Status.CANCELLED
+            order.save()
+            return Response({'status': 'cancelled'})
+        return Response({'error': 'Cannot cancel non-pending order'}, status=400)
+
+class OrderHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """All orders with status breakdown"""
+        orders = Order.objects.filter(student=request.user).select_related('stock')
+        return Response({
+            'pending': list(orders.filter(status=Order.Status.PENDING).values('id', 'stock__symbol', 'order_type', 'quantity', 'created_at')),
+            'executed': list(orders.filter(status=Order.Status.EXECUTED).values('id', 'stock__symbol', 'order_type', 'quantity', 'executed_at')),
+            'cancelled': list(orders.filter(status=Order.Status.CANCELLED).values('id', 'stock__symbol', 'order_type', 'quantity')),
+            'failed': list(orders.filter(status=Order.Status.FAILED).values('id', 'stock__symbol', 'failure_reason'))
+        })
+
