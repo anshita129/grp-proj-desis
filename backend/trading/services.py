@@ -502,6 +502,8 @@ def _execute_limit_sell(order, stock, holding, wallet):
 
     # update wallet balance
     wallet.balance += total_value
+    print(f"SELL EXECUTE: balance_before={balance_before}, total_value={total_value}, balance_after={wallet.balance + total_value}")
+
     wallet.save(update_fields=['balance', 'updated_at'])
 
     # update order status
@@ -575,8 +577,7 @@ def check_limit_orders():
 
                 elif order.order_type == Order.OrderType.SELL:
                     # has current price has risen to or above limit
-                    # Also check if holding exists, in case it was sold elsewhere
-                    if stock.current_price >= limit_order.limit_price and holding:
+                    if stock.current_price >= limit_order.limit_price:
                         _execute_limit_sell(order, stock, holding, wallet)
                         executed += 1
 

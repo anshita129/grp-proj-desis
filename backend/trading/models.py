@@ -41,6 +41,7 @@ class Order(models.Model):
         EXECUTED  = 'EXECUTED',  'Executed'
         FAILED    = 'FAILED',    'Failed'
         CANCELLED = 'CANCELLED', 'Cancelled'
+        EXPIRED   = 'EXPIRED',   'Expired'
 
     id             = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student        = models.ForeignKey(
