@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.password_validation import validate_password
@@ -15,6 +16,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+
+logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
 def test_api(request):
@@ -161,13 +164,19 @@ def forgot_password(request):
     }
     cache.set(_otp_cache_key(email), payload, timeout=OTP_TTL_SECONDS)
 
-    send_mail(
-        subject="Your password reset OTP",
-        message=f"Your OTP is: {otp}\n\nIt expires in 10 minutes.",
-        from_email=None,
-        recipient_list=[email],
-        fail_silently=True,
-    )
+    try:
+        sent = send_mail(
+            subject="Your password reset OTP",
+            message=f"Your OTP is: {otp}\n\nIt expires in 10 minutes.",
+            from_email=None,  # falls back to settings.DEFAULT_FROM_EMAIL
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        if sent != 1:
+            logger.warning("Password reset OTP email not sent (send_mail returned %s) for %s", sent, email)
+    except Exception:
+        # Don't reveal deliverability issues to the client. Log so operators can fix SMTP config.
+        logger.exception("Failed to send password reset OTP email for %s", email)
 
     return Response({"message": "If that email exists, an OTP has been sent."})
 

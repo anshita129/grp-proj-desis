@@ -103,3 +103,24 @@ Because the API uses Session Authentication, you must log in to establish a sess
 
 ### Why login via port 5173?
 The Vite server proxies `/api` and `/admin` to Django. By logging in through `localhost:5173/admin`, the session cookie is assigned to the `localhost:5173` origin, allowing the React API calls to authenticate successfully.
+
+---
+
+## ✉️ Password Reset OTP Email (SMTP)
+
+By default, the backend prints outgoing emails to the terminal because `EMAIL_BACKEND` defaults to Django's console email backend. To send the password reset OTP to a real inbox, configure SMTP in `backend/.env` (or your environment):
+
+```env
+# Turn on real email sending (either set EMAIL_BACKEND or set EMAIL_HOST)
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=true
+EMAIL_HOST_USER=your_email@gmail.com
+EMAIL_HOST_PASSWORD=your_app_password
+
+DEFAULT_FROM_EMAIL="GRP DESIS <your_email@gmail.com>"
+```
+
+Then restart the Django server.

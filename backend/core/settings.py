@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from dotenv import load_dotenv # type: ignore
 import os
+from django.utils.log import DEFAULT_LOGGING
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
@@ -167,9 +168,47 @@ LOGIN_REDIRECT_URL = "/portfolio/my-portfolio/"
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-# Email (dev-friendly defaults). For real emails, set SMTP env vars.
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'no-reply@grpdesis.local')
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "t", "yes", "y", "on"}
+
+
+# Email
+# Dev-friendly default is console backend. To send real emails (e.g., password reset OTP),
+# set SMTP env vars (EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD) or explicitly set
+# EMAIL_BACKEND to Django's SMTP backend.
+if os.environ.get("EMAIL_BACKEND"):
+    EMAIL_BACKEND = os.environ["EMAIL_BACKEND"]
+elif os.environ.get("EMAIL_HOST"):
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@grpdesis.local")
+
+# SMTP settings (used when EMAIL_BACKEND is smtp)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = _env_bool("EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "20"))
+
+# Logging: keep Django's defaults, but ensure app logs (e.g. OTP email failures) show up in the console.
+LOGGING = {
+    **DEFAULT_LOGGING,
+    "loggers": {
+        **DEFAULT_LOGGING.get("loggers", {}),
+        "users": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 # allauth (dev-friendly)
 ACCOUNT_LOGIN_METHODS = {"email"}
