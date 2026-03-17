@@ -11,13 +11,16 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
       '/admin': {
         target: 'http://localhost:8000',
-        changeOrigin: true,
+        changeOrigin: false,
+      },
+      '/accounts': {
+        target: 'http://localhost:8000',
+        changeOrigin: false,
       },
     },
   },
 })
-

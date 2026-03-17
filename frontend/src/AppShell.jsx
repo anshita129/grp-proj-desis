@@ -1,7 +1,10 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "./modules/users/auth/AuthContext";
 
 function AppShell() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { user, logout } = useAuth();
 
     const navItems = [
         { name: "Home", path: "/" },
@@ -46,10 +49,17 @@ function AppShell() {
                 </div>
 
                 <div className="p-4 border-t border-slate-700 text-xs text-center text-slate-500">
-                    Logged in as Kanishka
-                    <Link to="/login" className="block mt-2 text-blue-400 hover:text-blue-300">
+                    {user?.email ? `Signed in as ${user.email}` : "Signed in"}
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            await logout();
+                            navigate("/login");
+                        }}
+                        className="block w-full mt-2 text-blue-400 hover:text-blue-300"
+                    >
                         Sign out
-                    </Link>
+                    </button>
                 </div>
             </nav>
 
