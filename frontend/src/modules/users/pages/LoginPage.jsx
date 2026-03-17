@@ -22,7 +22,7 @@ function LoginPage() {
   const [message, setMessage] = useState("");
   const [googleReady, setGoogleReady] = useState(false);
 
-  const googleHref = useMemo(() => "/accounts/google/login/?process=login&next=/", []);
+  const googleHref = useMemo(() => "http://localhost:5173/accounts/google/login/?process=login&next=/", []);
 
   useEffect(() => {
     if (user) navigate("/");
