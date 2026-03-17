@@ -25,24 +25,24 @@ class OrderCancellationError(Exception):
     pass  # raised when trying to cancel an order that can't be cancelled
 
 def is_market_open():
-    ist = pytz.timezone('Asia/Kolkata')
-    now = timezone.now().astimezone(ist)
+    # ist = pytz.timezone('Asia/Kolkata')
+    # now = timezone.now().astimezone(ist)
     
-    # Saturday=5, Sunday=6
-    if now.weekday() >= 5:
-        return False, "Market closed — weekend"
+    # # Saturday=5, Sunday=6
+    # if now.weekday() >= 5:
+    #     return False, "Market closed — weekend"
     
-    # NSE hours: 9:15 AM to 3:30 PM IST
-    market_open  = now.replace(hour=9,  minute=15, second=0, microsecond=0)
-    market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    # # NSE hours: 9:15 AM to 3:30 PM IST
+    # market_open  = now.replace(hour=9,  minute=15, second=0, microsecond=0)
+    # market_close = now.replace(hour=15, minute=30, second=0, microsecond=0)
     
-    if now < market_open:
-        return False, f"Market opens at 9:15 AM IST"
-    if now > market_close:
-        return False, f"Market closed — opens tomorrow 9:15 AM IST"
+    # if now < market_open:
+    #     return False, f"Market opens at 9:15 AM IST"
+    # if now > market_close:
+    #     return False, f"Market closed — opens tomorrow 9:15 AM IST"
     
     return True, "Market open"
-
+    
 # VALIDATION
 def validate_order_input(symbol, quantity):
     """
