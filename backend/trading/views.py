@@ -1,10 +1,11 @@
-# trading/views.py
-from decimal import Decimal, InvalidOperation
-from urllib import request
 from rest_framework.views import APIView # type: ignore
 from rest_framework.response import Response # type: ignore
 from rest_framework.permissions import IsAuthenticated # type: ignore
-from .models import Wallet, Holding, TradeLog, Stock, Order
+from .models import Wallet, Holding, TradeLog, Stock, Order, LimitOrder
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+from django.core.cache import cache
+from django.utils.dateparse import parse_datetime
 
 from .services import (
     execute_buy, execute_sell,
@@ -25,7 +26,11 @@ class BuyView(APIView):
         quantity = request.data.get('quantity', 0)
         limit    = request.data.get('limit_price') 
         idempotency_key = request.data.get("idempotency_key")
-
+        expires  = request.data.get('expires_at')
+        expires_at = parse_datetime(expires) if expires else None
+        if expires_at and expires_at <= datetime.now(timezone.utc):
+            return Response({"error": "Expiry time must be in the future"}, status=400)
+  
         try:
             quantity = int(quantity)
         except (ValueError, TypeError):
@@ -35,7 +40,7 @@ class BuyView(APIView):
             # depending on whether limit price is provided, call the appropriate service function to execute the buy order
             if limit:
                 limit_price = Decimal(str(limit))
-                order = place_limit_buy(request.user, symbol, quantity, limit_price, idempotency_key=idempotency_key)
+                order = place_limit_buy(request.user, symbol, quantity, limit_price, expires_at=expires, idempotency_key=idempotency_key)
                 msg = f"Limit buy placed for {quantity} shares of {symbol} at ₹{limit_price}"
             else:
                 order = execute_buy(request.user, symbol, quantity, idempotency_key=idempotency_key)
@@ -60,13 +65,18 @@ class BuyView(APIView):
 # similar to BuyView but for selling stocks
 class SellView(APIView):
     permission_classes = [IsAuthenticated]
-
+    
     def post(self, request):
         symbol   = request.data.get('symbol', '').strip()
         quantity = request.data.get('quantity', 0)
-        limit    = request.data.get('limit_price')  # optional
+        limit    = request.data.get('limit_price')  
         idempotency_key = request.data.get("idempotency_key")
 
+        expires  = request.data.get('expires_at')
+        expires_at = parse_datetime(expires) if expires else None
+        if expires_at and expires_at <= datetime.now(timezone.utc):
+            return Response({"error": "Expiry time must be in the future"}, status=400)
+        
         try:
             quantity = int(quantity)
         except (ValueError, TypeError):
@@ -75,7 +85,7 @@ class SellView(APIView):
         try:
             if limit:
                 limit_price = Decimal(str(limit))
-                order = place_limit_sell(request.user, symbol, quantity, limit_price, idempotency_key=idempotency_key)
+                order = place_limit_sell(request.user, symbol, quantity, limit_price, expires_at=expires, idempotency_key=idempotency_key)
                 msg = f"Limit sell placed for {quantity} shares of {symbol} at ₹{limit_price}"
             else:
                 order = execute_sell(request.user, symbol, quantity, idempotency_key=idempotency_key)
@@ -94,7 +104,7 @@ class SellView(APIView):
         except InvalidOperation           as e: return Response({"error": "Invalid limit price"}, status=400)
         except Exception                  as e: return Response({"error": str(e)}, status=500)
 
-# Cancels a pending order.
+# Cancels a pending order
 class CancelOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -115,26 +125,43 @@ class CancelOrderView(APIView):
             return Response({"error": str(e)}, status=400)
         except Exception as e:
             return Response({"error": str(e)}, status=500)
+        
 
-# Returns last 50 executed trades of the authenticated user, sorted by most recent first.
 class TradeHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        logs = TradeLog.objects.filter(
-            student=request.user
-        ).order_by('-executed_at')[:50]
+        # Get all orders, apart from pending orders 
+        orders = Order.objects.filter(
+                student=request.user,
+                status__in=[Order.Status.EXECUTED, Order.Status.CANCELLED]  # exclude PENDING
+            ).order_by('-created_at')[:50]
+                
+        # Get trade logs keyed by order id for balance info
+        logs = {str(l.order.id): l for l in TradeLog.objects.filter(order__student=request.user)}
+        
+        limit_prices = {str(l.order.id): float(l.limit_price) 
+                for l in LimitOrder.objects.filter(order__student=request.user)}
 
-        return Response([{
-            "order_id":      str(l.order.id), 
-            "symbol":        l.stock_symbol,
-            "type":          l.order_type,
-            "quantity":      l.quantity,
-            "price":         float(l.price),
-            "total_value":   float(l.total_value),
-            "balance_after": float(l.wallet_balance_after),
-            "time":          l.executed_at.isoformat()
-        } for l in logs])
+        result = []
+        for o in orders:
+            log = logs.get(str(o.id))
+            result.append({
+                "order_id":      str(o.id),
+                "symbol":        o.stock.symbol,
+                "type":          o.order_type,
+                "quantity":      o.quantity,
+                "price":         round(float(log.price if log else o.price_at_order), 2),
+                "total_value":   round(float(log.total_value if log else o.price_at_order * o.quantity), 2),
+                "limit_price":   round(float(limit_prices[str(o.id)]), 2) if str(o.id) in limit_prices else None,
+                "balance_after": float(log.wallet_balance_after) if log else None,
+                "time":          o.created_at.isoformat(),
+                "executed_at":   log.executed_at.isoformat() if log else None,
+                "status":        o.status,
+                "is_limit":      str(o.id) in limit_prices,
+                
+            })
+        return Response(result)
 
 # Returns all pending orders of the authenticated user, sorted by most recent first.
 class PendingOrdersView(APIView):
@@ -146,19 +173,27 @@ class PendingOrdersView(APIView):
             status=Order.Status.PENDING
         ).select_related('stock').order_by('-created_at')
 
-        return Response([{
-            "order_id":    str(o.id),
-            "symbol":      o.stock.symbol,
-            "type":        o.order_type,
-            "quantity":    o.quantity,
-            "limit_price": float(o.price_at_order),
-            "total_value": float(o.total_value),
-            "placed_at":   o.created_at.isoformat()
-        } for o in orders])
+        # pre-fetch limit prices for all these orders
+        limit_map = {
+            str(lo.order.id): {"limit_price": round(float(lo.limit_price), 2), "expires_at": lo.expires_at.isoformat() if lo.expires_at else None}
+            for lo in LimitOrder.objects.filter(order__in=orders)
+        }
 
-# Returns a list of all stocks with their current price and last updated time.
+        return Response([{
+            "id":             str(o.id),
+            "stock":          o.stock.symbol,
+            "order_type":     o.order_type,
+            "quantity":       o.quantity,
+            "price_at_order": round(float(o.price_at_order), 2),
+            "limit_price":    limit_map.get(str(o.id), {}).get("limit_price"),
+            "expires_at":     limit_map.get(str(o.id), {}).get("expires_at"),
+            "created_at":     o.created_at.isoformat(),
+        } for o in orders])
+    
+
+# Returns a list of all stocks with their current price and last updated time
 class StockListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = []
 
     def get(self, request):
         stocks = Stock.objects.all().order_by('sector', 'symbol')
@@ -167,30 +202,31 @@ class StockListView(APIView):
             "company":       s.company_name,
             "sector":        s.sector,
             "current_price": float(s.current_price),
+            "prev_close":    cache.get(f'prev_close_{s.symbol}', float(s.current_price)),
             "last_updated":  s.last_updated.isoformat()
         } for s in stocks])
 
-class CancelOrderView(APIView):
+# Returns the wallet balance of the authenticated user. If wallet doesn't exist, returns balance as 0.0
+class WalletView(APIView):
     permission_classes = [IsAuthenticated]
-    
-    def post(self, request, order_id):
-        order = get_object_or_404(Order, id=order_id, student=request.user)
-        if order.status == Order.Status.PENDING:
-            order.status = Order.Status.CANCELLED
-            order.save()
-            return Response({'status': 'cancelled'})
-        return Response({'error': 'Cannot cancel non-pending order'}, status=400)
-
-class OrderHistoryView(APIView):
+   
+    def get(self, request):
+        from trading.models import Wallet
+        try:
+            wallet = Wallet.objects.get(student=request.user)
+            return Response({"wallet_balance": float(wallet.balance)})
+        except Wallet.DoesNotExist:
+            return Response({"wallet_balance": 0.0})
+        
+# Returns a list of all holdings for the authenticated user
+class HoldingsView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """All orders with status breakdown"""
-        orders = Order.objects.filter(student=request.user).select_related('stock')
-        return Response({
-            'pending': list(orders.filter(status=Order.Status.PENDING).values('id', 'stock__symbol', 'order_type', 'quantity', 'created_at')),
-            'executed': list(orders.filter(status=Order.Status.EXECUTED).values('id', 'stock__symbol', 'order_type', 'quantity', 'executed_at')),
-            'cancelled': list(orders.filter(status=Order.Status.CANCELLED).values('id', 'stock__symbol', 'order_type', 'quantity')),
-            'failed': list(orders.filter(status=Order.Status.FAILED).values('id', 'stock__symbol', 'failure_reason'))
-        })
-
+        holdings = Holding.objects.filter(
+            student=request.user, quantity__gt=0
+        ).select_related('stock')
+        return Response([{
+            "symbol": h.stock.symbol,
+            "quantity": h.quantity,
+        } for h in holdings])
