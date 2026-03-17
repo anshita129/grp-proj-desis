@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'learning',
     'simulation',
     'ai_engine',
+    'rest_framework.authtoken',
     'rest_framework',
     'corsheaders',
     'rest_framework.authtoken',
@@ -64,8 +65,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # dev only
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']  # Vite dev server
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+]
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -153,6 +157,7 @@ AUTH_USER_MODEL = 'users.User'
 LOGIN_REDIRECT_URL = "/portfolio/my-portfolio/"
 
 CORS_ALLOW_ALL_ORIGINS = True
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
