@@ -6,6 +6,7 @@ urlpatterns = [
     path('csrf/', views.csrf, name='csrf'),
     path('me/', views.me, name='me'),
     path('login/', views.login_view, name='login'),
+    path('signup/', views.signup_view, name='signup'),
     path('logout/', views.logout_view, name='logout'),
     path('oauth/status/', views.oauth_status, name='oauth_status'),
     path('password/forgot/', views.forgot_password, name='forgot_password'),

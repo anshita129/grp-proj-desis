@@ -67,6 +67,46 @@ def login_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def signup_view(request):
+    email = (request.data.get("email") or "").strip().lower()
+    username = (request.data.get("username") or "").strip()
+    password = request.data.get("password") or ""
+
+    if not email or not username or not password:
+        return Response({"error": "Email, username, and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    User = get_user_model()
+    if User.objects.filter(email__iexact=email).exists():
+        return Response({"error": "A user with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+        
+    if User.objects.filter(username__iexact=username).exists():
+        return Response({"error": "A user with this username already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Create the user
+    user = User(email=email, username=username)
+    
+    try:
+        validate_password(password, user=user)
+    except ValidationError as e:
+        return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        
+    user.set_password(password)
+    user.save()
+
+    # Log them in automatically
+    authed = authenticate(request, username=user.username, password=password)
+    if authed:
+        login(request, authed)
+        return Response({
+            "message": "Account created and logged in",
+            "user": {"id": authed.id, "username": authed.username, "email": authed.email}
+        }, status=status.HTTP_201_CREATED)
+        
+    return Response({"message": "Account created successfully. Please log in."}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def logout_view(request):
     logout(request)
     return Response({"message": "Logged out"})
