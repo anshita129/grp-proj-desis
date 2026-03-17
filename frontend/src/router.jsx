@@ -13,7 +13,7 @@ import LoginPage from "./modules/users/pages/LoginPage"
 import RequireAuth from "./modules/users/auth/RequireAuth"
 
 import AppShell from "./AppShell"
-
+import HomePage from "./modules/home/pages/HomePage"
 const router = createBrowserRouter([
   {
     path: "/",
@@ -23,7 +23,7 @@ const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <div className="p-8 text-2xl">Home — GRP DESIS</div> },
+      { index: true, element: <HomePage /> },
       { path: "learning", element: <LearningPage /> },
       { path: "learning/badges", element: <BadgesPage /> },
       { path: "learning/results/:attemptId", element: <ResultsPage /> },
