@@ -117,8 +117,9 @@ def oauth_status(request):
     google_configured = False
     try:
         from allauth.socialaccount.models import SocialApp  # type: ignore
+        # Check if there's any Google provider set up with a client ID
         qs = SocialApp.objects.filter(provider="google")
-        google_configured = qs.filter(client_id__isnull=False).exclude(client_id="").exists()
+        google_configured = qs.exclude(client_id__isnull=True).exclude(client_id="").exists()
     except Exception:
         google_configured = False
 
