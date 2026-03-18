@@ -101,16 +101,25 @@ class Command(BaseCommand):
 
                 change    = stock.current_price * change_pct
                 new_price = stock.current_price + change
+                old_price = stock.current_price
 
-                # Floor at ₹1 — price can never go negative or zero
+                # calculate new price
+                new_price = old_price + (old_price * change_pct)
+
+                # ensure >= 1
                 new_price = max(new_price, Decimal('1.00'))
                 new_price = round(new_price, 2)
 
-                old_price = stock.current_price
-                stock.current_price = new_price
-                stock.save(update_fields=['current_price', 'last_updated'])
-                cache.set(f'prev_close_{stock.symbol}', float(old_price), timeout=None) 
+                # CALCULATE CHANGE HERE
+                change = new_price - old_price
+                change_pct_val = (change / old_price * 100) if old_price else Decimal('0')
 
+                # SAVE EVERYTHING
+                stock.current_price = new_price
+                stock.change = round(change, 2)
+                stock.change_pct = round(change_pct_val, 2)
+
+                stock.save(update_fields=['current_price', 'change', 'change_pct', 'last_updated'])
 
                 # Prepare price history entry for bulk insert
                 #if not skip_history:

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { fetchStocks, fetchWallet, fetchHistory, fetchPending, cancelOrder, fetchHoldings } from "./api";
+import { useAuth } from "../../users/auth/AuthContext";
+import { getCookie } from "../../users/auth/http";
 
 // Utility function 
 // converts a raw number into Indian-locale currency string (1234567.8  →  "₹12,34,567.80")
@@ -113,8 +115,8 @@ function OrderForm({ stocks, wallet, holdings, selectedSymbol, onSuccess }) {
 
     const url =
       side === "BUY"
-        ? "http://127.0.0.1:8000/api/trading/buy/"
-        : "http://127.0.0.1:8000/api/trading/sell/";
+        ? "/api/trading/buy/"
+        : "/api/trading/sell/";
 
     // the request body includes symbol, quantity, and optionally limit_price and expires_at
     const body = {
@@ -127,18 +129,21 @@ function OrderForm({ stocks, wallet, holdings, selectedSymbol, onSuccess }) {
 
     // place the order by calling the backend API
     try {
+
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Idempotency-Key": idempotencyKey,
-          "Authorization": `Token ${localStorage.getItem("token")}`,
+          "X-CSRFToken": getCookie("csrftoken"),
         },
+        credentials: "include",
         body: JSON.stringify(body),
       });
 
+      if (!res) return;
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      console.log(data);
+      if (!res.ok) throw new Error(data?.error || "Something went wrong");
 
       // confirmed order - show success message and reset form
       setResult({ ok: true, msg: data.message, status: data.order_status });
@@ -404,10 +409,8 @@ function StockTable({ stocks, onSelect }) {
           <tbody>
             {/* Change in % of stocks */}
             {filtered.map((s, i) => {
-              const chg = s.prev_close > 0
-                ? (((s.current_price - s.prev_close) / s.prev_close) * 100).toFixed(2)
-                : "0.00";
-              const pos = parseFloat(chg) >= 0;
+              const chg = s.change_pct;
+              const pos = chg >= 0;
               return (
                 <tr key={s.symbol}
                   className={`border-b border-slate-700/20 cursor-pointer transition-colors hover:bg-indigo-500/5 ${i % 2 === 0 ? "" : "bg-slate-900/20"}`}
@@ -425,7 +428,7 @@ function StockTable({ stocks, onSelect }) {
 
                   {/* % change with arrow indicator */}
                   <td className={`px-4 py-3 text-right text-xs font-mono font-bold ${pos ? "text-emerald-400" : "text-red-400"}`}>
-                    {pos ? "▲" : "▼"} {Math.abs(chg)}%
+                    {pos ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
                   </td>
 
                   {/* TRADE button — calls onSelect which switches tab + pre-fills symbol */}
@@ -533,6 +536,9 @@ function TradeHistory({ history }) {
 // ----------------------------------------------------------------
 // COMPONENT 5: TradingPage  (root / page component)
 export default function TradingPage() {
+
+  const { user } = useAuth();
+
   const [tab, setTab] = useState("trade");                          // active tab key
   const [stocks, setStocks] = useState([]);                         // all stocks from API
   const [history, setHistory] = useState([]);                       // executed trades
@@ -636,7 +642,7 @@ export default function TradingPage() {
               <p className="text-sm font-mono font-bold text-indigo-400">{fmt(wallet.balance)}</p>
             </div>
             <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-xs font-mono font-bold text-indigo-400">
-              U
+              {user?.username?.[0]?.toUpperCase()}
             </div>
           </div>
         </div>
@@ -680,10 +686,8 @@ export default function TradingPage() {
               </div>
               <div className="grid gap-px bg-slate-700/20" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
                 {stocks.map(s => {
-                  const chg = s.prev_close > 0
-                    ? (((s.current_price - s.prev_close) / s.prev_close) * 100).toFixed(2)
-                    : "0.00";
-                  const pos = parseFloat(chg) >= 0;
+                  const chg = s.change_pct;
+                  const pos = chg >= 0;
                   return (
                     <div key={s.symbol} onClick={() => handleSelectStock(s)}
                       className="bg-slate-800/50 hover:bg-indigo-500/5 p-4 cursor-pointer transition-colors"
@@ -696,7 +700,7 @@ export default function TradingPage() {
                         <div className="text-right">
                           <p className="text-sm font-mono font-semibold text-slate-200">{fmt(s.current_price)}</p>
                           <p className={`text-xs font-mono mt-0.5 ${pos ? "text-emerald-400" : "text-red-400"}`}>
-                            {pos ? "▲" : "▼"} {Math.abs(chg)}%
+                            {pos ? "▲" : "▼"} {Math.abs(chg).toFixed(2)}%
                           </p>
                         </div>
                       </div>

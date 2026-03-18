@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from django.core.cache import cache
 from django.utils.dateparse import parse_datetime
+TICK_SIZE = Decimal('0.05')
 
 from .services import (
     execute_buy, execute_sell,
@@ -111,7 +112,7 @@ class CancelOrderView(APIView):
     def post(self, request, order_id):
         try:
             # call the cancel_order service function to attempt cancellation of the specified order
-            order = cancel_order(request.user, order_id)
+            order = cancel_order(request.user, order_id, expire = False)
             
             # return success response 
             return Response({
@@ -134,13 +135,13 @@ class TradeHistoryView(APIView):
         # Get all orders, apart from pending orders 
         orders = Order.objects.filter(
                 student=request.user,
-                status__in=[Order.Status.EXECUTED, Order.Status.CANCELLED]  # exclude PENDING
+                status__in=[Order.Status.EXECUTED, Order.Status.CANCELLED, Order.Status.EXPIRED]
             ).order_by('-created_at')[:50]
                 
         # Get trade logs keyed by order id for balance info
         logs = {str(l.order.id): l for l in TradeLog.objects.filter(order__student=request.user)}
         
-        limit_prices = {str(l.order.id): float(l.limit_price) 
+        limit_prices = {str(l.order.id): Decimal(l.limit_price) 
                 for l in LimitOrder.objects.filter(order__student=request.user)}
 
         result = []
@@ -151,10 +152,10 @@ class TradeHistoryView(APIView):
                 "symbol":        o.stock.symbol,
                 "type":          o.order_type,
                 "quantity":      o.quantity,
-                "price":         round(float(log.price if log else o.price_at_order), 2),
-                "total_value":   round(float(log.total_value if log else o.price_at_order * o.quantity), 2),
-                "limit_price":   round(float(limit_prices[str(o.id)]), 2) if str(o.id) in limit_prices else None,
-                "balance_after": float(log.wallet_balance_after) if log else None,
+                "price":         ((Decimal(log.price if log else o.price_at_order)) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE,
+                "total_value":   ((Decimal(log.total_value if log else o.price_at_order * o.quantity))/TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE,
+                "limit_price":   ((Decimal(limit_prices[str(o.id)])) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE if str(o.id) in limit_prices else None,
+                "balance_after": Decimal(log.wallet_balance_after) if log else None,
                 "time":          o.created_at.isoformat(),
                 "executed_at":   log.executed_at.isoformat() if log else None,
                 "status":        o.status,
@@ -175,16 +176,17 @@ class PendingOrdersView(APIView):
 
         # pre-fetch limit prices for all these orders
         limit_map = {
-            str(lo.order.id): {"limit_price": round(float(lo.limit_price), 2), "expires_at": lo.expires_at.isoformat() if lo.expires_at else None}
+            str(lo.order.id): {"limit_price": ((Decimal(lo.limit_price)) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE, "expires_at": lo.expires_at.isoformat() if lo.expires_at else None}
             for lo in LimitOrder.objects.filter(order__in=orders)
         }
+
 
         return Response([{
             "id":             str(o.id),
             "stock":          o.stock.symbol,
             "order_type":     o.order_type,
             "quantity":       o.quantity,
-            "price_at_order": round(float(o.price_at_order), 2),
+            "price_at_order": ((Decimal(o.price_at_order)) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE,
             "limit_price":    limit_map.get(str(o.id), {}).get("limit_price"),
             "expires_at":     limit_map.get(str(o.id), {}).get("expires_at"),
             "created_at":     o.created_at.isoformat(),
@@ -198,12 +200,13 @@ class StockListView(APIView):
     def get(self, request):
         stocks = Stock.objects.all().order_by('sector', 'symbol')
         return Response([{
-            "symbol":        s.symbol,
-            "company":       s.company_name,
-            "sector":        s.sector,
-            "current_price": float(s.current_price),
-            "prev_close":    cache.get(f'prev_close_{s.symbol}', float(s.current_price)),
-            "last_updated":  s.last_updated.isoformat()
+            "symbol": s.symbol,
+            "company": s.company_name,
+            "sector": s.sector,
+            "current_price": Decimal(s.current_price),
+            "change": Decimal(s.change),
+            "change_pct": Decimal(s.change_pct),
+            "last_updated": s.last_updated.isoformat()
         } for s in stocks])
 
 # Returns the wallet balance of the authenticated user. If wallet doesn't exist, returns balance as 0.0
@@ -214,9 +217,9 @@ class WalletView(APIView):
         from trading.models import Wallet
         try:
             wallet = Wallet.objects.get(student=request.user)
-            return Response({"wallet_balance": float(wallet.balance)})
+            return Response({"wallet_balance": Decimal(wallet.balance)})
         except Wallet.DoesNotExist:
-            return Response({"wallet_balance": 0.0})
+            return Response({"wallet_balance": Decimal('0.00')})
         
 # Returns a list of all holdings for the authenticated user
 class HoldingsView(APIView):
