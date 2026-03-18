@@ -9,10 +9,18 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': { target: 'http://localhost:8000', changeOrigin: true },
-      '/admin': { target: 'http://localhost:8000', changeOrigin: true },
-      '/portfolio/my-portfolio': { target: 'http://localhost:8000', changeOrigin: true }, // ← add this
-      '/api-auth': { target: 'http://localhost:8000', changeOrigin: true },  // ← add this for login
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: false,
+      },
+      '/admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: false,
+      },
+      '/accounts': {
+        target: 'http://localhost:8000',
+        changeOrigin: false,
+      },
     },
   },
 })

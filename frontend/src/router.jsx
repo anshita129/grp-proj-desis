@@ -10,15 +10,20 @@ import PortfolioPage from "./modules/portfolio/pages/PortfolioPage"
 import AIPage from "./modules/ai_engine/pages/AIPage"
 import SimulationPage from "./modules/simulation/pages/SimulationPage"
 import LoginPage from "./modules/users/pages/LoginPage"
+import RequireAuth from "./modules/users/auth/RequireAuth"
 
 import AppShell from "./AppShell"
-
+import HomePage from "./modules/home/pages/HomePage"
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     children: [
-      { index: true, element: <div className="p-8 text-2xl">Home — GRP DESIS</div> },
+      { index: true, element: <HomePage /> },
       { path: "learning", element: <LearningPage /> },
       { path: "learning/badges", element: <BadgesPage /> },
       { path: "learning/results/:attemptId", element: <ResultsPage /> },
