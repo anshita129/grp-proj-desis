@@ -537,9 +537,10 @@ def check_limit_orders():
     expires_at__lt=timezone.now()
     ).select_related('order__student')
 
+    # cancel all expired orders 
     for limit_order in expired:
         try:
-            cancel_order(limit_order.order.student, limit_order.order.id)
+            cancel_order(limit_order.order.student, limit_order.order.id, expire = True)
         except Exception as e:
             continue
 
@@ -592,19 +593,12 @@ def check_limit_orders():
         expires_at__lt=timezone.now()
     ).select_related('order__student')
 
-    # cancel all expired orders 
-    for limit_order in expired:
-        try:
-            cancel_order(limit_order.order.student, limit_order.order.id)
-        except Exception as e:
-            print(f'LIMIT ORDER ERROR: {e}')
-            continue
 
     return executed
 
 
 # cancel orders that are pending 
-def cancel_order(student, order_id) -> Order:
+def cancel_order(student, order_id, expire) -> Order:
     """
     Cancels a PENDING order.
     For limit buy orders — refunds the reserved money back to wallet.
@@ -650,7 +644,8 @@ def cancel_order(student, order_id) -> Order:
             holding.save(update_fields=['quantity', 'updated_at'])
             
         # update status to cancelled
-        order.status = Order.Status.CANCELLED
+
+        order.status = Order.Status.CANCELLED if not expire else Order.Status.EXPIRED
         order.save(update_fields=['status'])
 
         return order
