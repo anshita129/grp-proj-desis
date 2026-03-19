@@ -45,9 +45,24 @@ function AppShell() {
                     })}
                 </div>
 
-                <div className="p-4 border-t border-slate-700 text-xs text-center text-slate-500">
-                    Logged in as Kanishka
-                    <Link to="/login" className="block mt-2 text-blue-400 hover:text-blue-300">
+                <div className="p-4 border-t border-slate-700 text-center">
+                    <Link
+                        to="/profile"
+                        className="flex items-center justify-center gap-3 p-3 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+                            K
+                        </div>
+                        <div className="text-left">
+                            <p className="text-sm font-medium text-white">Kanishka</p>
+                            <p className="text-xs text-slate-400">View Profile</p>
+                        </div>
+                    </Link>
+
+                    <Link
+                        to="/login"
+                        className="block mt-3 text-sm text-blue-400 hover:text-blue-300"
+                    >
                         Sign out
                     </Link>
                 </div>
