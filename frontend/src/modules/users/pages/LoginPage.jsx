@@ -69,7 +69,7 @@ function LoginPage() {
       if (!res.ok) throw new Error(data?.error || "Login failed.");
       setMessage("Logged in! Redirecting...");
       await refresh();
-      setTimeout(() => navigate("/portfolio"), 300);
+      setTimeout(() => navigate("/"), 300);
     } catch (err) {
       setError(err?.message || "Login failed.");
     } finally {
@@ -93,7 +93,7 @@ function LoginPage() {
       );
       setMessage("Account created! Redirecting...");
       await refresh();
-      setTimeout(() => navigate("/portfolio"), 500);
+      setTimeout(() => navigate("/"), 500);
     } catch (err) {
       setError(err?.message || "Signup failed.");
     } finally {
@@ -221,11 +221,10 @@ function LoginPage() {
           {!googleReady && (
             <div className="text-xs text-slate-500 bg-slate-950 p-3 rounded-lg border border-slate-800">
               <span className="font-bold text-slate-300 block mb-1">To enable Google OAuth:</span>
-              1. Login with the superuser at <code className="bg-slate-800 px-1 rounded text-orange-300">/admin</code><br />
-              2. Go to Social Applications &gt; Add<br />
-              3. Set Provider to "Google", add a Client ID and Secret key<br />
-              4. Move "example.com" to chosen sites.<br />
-              5. Refresh this page.
+              1. Open the <code className="bg-slate-800 px-1 rounded text-orange-300">backend/.env</code> file.<br />
+              2. Add your <code className="text-slate-400">GOOGLE_CLIENT_ID</code>.<br />
+              3. Add your <code className="text-slate-400">GOOGLE_CLIENT_SECRET</code>.<br />
+              4. Restart the Django server and refresh this page.
             </div>
           )}
 
