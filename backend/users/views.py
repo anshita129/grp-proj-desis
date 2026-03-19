@@ -1,6 +1,8 @@
 import hashlib
 import logging
 import secrets
+from decimal import Decimal
+
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
@@ -17,9 +19,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
+from trading.models import Wallet, Holding as TradingHolding, Order, TradeLog
+from ai_engine.models import AIInsight
+
 logger = logging.getLogger(__name__)
 
+
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def test_api(request):
     return Response({"message": "Backend is working"})
 
@@ -64,7 +71,11 @@ def login_view(request):
     login(request, authed)
     return Response({
         "message": "Logged in",
-        "user": {"id": authed.id, "username": authed.username, "email": authed.email}
+        "user": {
+            "id": authed.id,
+            "username": authed.username,
+            "email": authed.email
+        }
     })
 
 
@@ -81,30 +92,32 @@ def signup_view(request):
     User = get_user_model()
     if User.objects.filter(email__iexact=email).exists():
         return Response({"error": "A user with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
-        
+
     if User.objects.filter(username__iexact=username).exists():
         return Response({"error": "A user with this username already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Create the user
     user = User(email=email, username=username)
-    
+
     try:
         validate_password(password, user=user)
     except ValidationError as e:
         return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
-        
+
     user.set_password(password)
     user.save()
 
-    # Log them in automatically
     authed = authenticate(request, username=user.username, password=password)
     if authed:
         login(request, authed)
         return Response({
             "message": "Account created and logged in",
-            "user": {"id": authed.id, "username": authed.username, "email": authed.email}
+            "user": {
+                "id": authed.id,
+                "username": authed.username,
+                "email": authed.email
+            }
         }, status=status.HTTP_201_CREATED)
-        
+
     return Response({"message": "Account created successfully. Please log in."}, status=status.HTTP_201_CREATED)
 
 
@@ -114,13 +127,13 @@ def logout_view(request):
     logout(request)
     return Response({"message": "Logged out"})
 
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def oauth_status(request):
     google_configured = False
     try:
         from allauth.socialaccount.models import SocialApp  # type: ignore
-        # Check if there's any Google provider set up with a client ID
         qs = SocialApp.objects.filter(provider="google")
         google_configured = qs.exclude(client_id__isnull=True).exclude(client_id="").exists()
     except Exception:
@@ -138,7 +151,6 @@ def _otp_cache_key(email: str) -> str:
 
 
 def _hash_otp(email: str, otp: str) -> str:
-    # Deterministic hash for cache storage (email binds the OTP to a user identifier).
     return hashlib.sha256(f"{email.lower()}::{otp}".encode("utf-8")).hexdigest()
 
 
@@ -152,7 +164,6 @@ def forgot_password(request):
     User = get_user_model()
     user = User.objects.filter(email__iexact=email).first()
 
-    # Always respond OK to avoid revealing whether an email exists.
     if not user:
         return Response({"message": "If that email exists, an OTP has been sent."})
 
@@ -168,14 +179,13 @@ def forgot_password(request):
         sent = send_mail(
             subject="Your password reset OTP",
             message=f"Your OTP is: {otp}\n\nIt expires in 10 minutes.",
-            from_email=None,  # falls back to settings.DEFAULT_FROM_EMAIL
+            from_email=None,
             recipient_list=[email],
             fail_silently=False,
         )
         if sent != 1:
             logger.warning("Password reset OTP email not sent (send_mail returned %s) for %s", sent, email)
     except Exception:
-        # Don't reveal deliverability issues to the client. Log so operators can fix SMTP config.
         logger.exception("Failed to send password reset OTP email for %s", email)
 
     return Response({"message": "If that email exists, an OTP has been sent."})
@@ -246,3 +256,58 @@ def reset_password(request):
     user.set_password(new_password)
     user.save(update_fields=["password"])
     return Response({"message": "Password updated"})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profile_view(request):
+    user = request.user
+
+    wallet = Wallet.objects.filter(student=user).first()
+    holdings = TradingHolding.objects.filter(student=user).select_related("stock")
+    orders = Order.objects.filter(student=user)
+    trade_logs = TradeLog.objects.filter(student=user).order_by("-executed_at")[:5]
+    latest_ai = AIInsight.objects.filter(user=user).order_by("-created_at").first()
+    ai_count = AIInsight.objects.filter(user=user).count()
+
+    portfolio_value = Decimal("0.00")
+    holdings_count = 0
+
+    for holding in holdings:
+        portfolio_value += holding.quantity * holding.stock.current_price
+        holdings_count += 1
+
+    recent_activity = []
+
+    for log in trade_logs:
+        recent_activity.append(
+            f"{log.order_type} {log.quantity} shares of {log.stock_symbol} at ₹{log.price}"
+        )
+
+    if latest_ai:
+        recent_activity.append(
+            f"Latest AI insight: {latest_ai.risk_profile} risk profile"
+        )
+
+    return Response({
+        "name": user.username,
+        "email": user.email,
+        "member_since": user.created_at.strftime("%d %B %Y") if getattr(user, "created_at", None) else "",
+        "last_login": user.last_login.strftime("%d %B %Y, %I:%M %p") if user.last_login else "",
+        "account_type": "Student" if getattr(user, "is_student", False) else "User",
+
+        "available_balance": str(wallet.balance) if wallet else "0.00",
+        "portfolio_value": str(portfolio_value),
+        "holdings_count": holdings_count,
+        "total_orders": orders.count(),
+        "buy_orders": orders.filter(order_type="BUY").count(),
+        "sell_orders": orders.filter(order_type="SELL").count(),
+
+        "ai_usage_count": ai_count,
+        "risk_profile": latest_ai.risk_profile if latest_ai else "Not available",
+        "trader_type": latest_ai.trader_type if latest_ai and latest_ai.trader_type else "Not available",
+        "anomaly_detected": latest_ai.anomaly_detected if latest_ai else False,
+        "ai_summary": latest_ai.summary if latest_ai and latest_ai.summary else "No AI summary available",
+
+        "recent_activity": recent_activity[:5],
+    }, status=status.HTTP_200_OK)
