@@ -131,6 +131,7 @@ def logout_view(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def oauth_status(request):
+<<<<<<< HEAD
     google_configured = False
     try:
         from allauth.socialaccount.models import SocialApp  # type: ignore
@@ -138,6 +139,11 @@ def oauth_status(request):
         google_configured = qs.exclude(client_id__isnull=True).exclude(client_id="").exists()
     except Exception:
         google_configured = False
+=======
+    import os
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+    google_configured = bool(client_id) and "replace_me" not in client_id and "your_google_oauth_client_id_here" not in client_id
+>>>>>>> kanishka
 
     return Response({"google_configured": google_configured})
 
