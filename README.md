@@ -1,4 +1,4 @@
-# GRP DESIS - Stock Market Learning Platform
+#  Stock Market Learning Platform
 
 This repository contains the source code for a comprehensive Stock Market Learning and Trading Simulation Platform. It features a Django backend providing a RESTful API and a React (Vite) frontend with a modern UI.
 
@@ -60,10 +60,20 @@ python manage.py runserver
 The backend API and Admin Panel will now be running at [http://localhost:8000](http://localhost:8000).
 - Admin Panel: [http://localhost:8000/admin/](http://localhost:8000/admin/)
 
-### 7. Seed Initial Data (Optional)
+### 7. Seed Initial Data and simulate prices 
 To populate the Learning Module with modules, lessons, quizzes, and badges:
 ```bash
 python manage.py seed_learning
+```
+
+To populate with stocks
+```bash
+python manage.py seed_trading
+```
+
+To start the simulation of prices for the stocks
+```bash
+python manage.py simulate_prices
 ```
 
 ---
