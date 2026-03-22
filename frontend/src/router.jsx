@@ -10,13 +10,10 @@ import PortfolioPage from "./modules/portfolio/pages/PortfolioPage"
 import AIPage from "./modules/ai_engine/pages/AIPage"
 import SimulationPage from "./modules/simulation/pages/SimulationPage"
 import LoginPage from "./modules/users/pages/LoginPage"
-
-import RequireAuth from "./modules/users/auth/RequireAuth"   // ✅ keep this
-import Profile from "./modules/users/pages/Profile"          // ✅ add this
+import RequireAuth from "./modules/users/auth/RequireAuth"
 
 import AppShell from "./AppShell"
 import HomePage from "./modules/home/pages/HomePage"
-
 const router = createBrowserRouter([
   {
     path: "/",
@@ -36,9 +33,6 @@ const router = createBrowserRouter([
       { path: "portfolio", element: <PortfolioPage /> },
       { path: "ai", element: <AIPage /> },
       { path: "simulation", element: <SimulationPage /> },
-
-      // ✅ fix path (remove leading slash)
-      { path: "profile", element: <Profile /> },
     ]
   },
   { path: "/login", element: <LoginPage /> },
