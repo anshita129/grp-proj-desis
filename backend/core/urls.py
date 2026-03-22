@@ -8,7 +8,7 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),
 
     path('api/users/', include('users.urls')),
-    path("portfolio/", include("portfolio.urls")),
+    path("api/portfolio/", include("portfolio.urls")),
     path("api-auth/", include("rest_framework.urls")),
 
     path('api/trading/', include('trading.urls')),
