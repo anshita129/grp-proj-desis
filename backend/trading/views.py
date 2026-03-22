@@ -2,14 +2,15 @@ from rest_framework.views import APIView # type: ignore
 from rest_framework.response import Response # type: ignore
 from rest_framework.permissions import IsAuthenticated # type: ignore
 from .models import Wallet, Holding, TradeLog, Stock, Order, LimitOrder
-from datetime import datetime, timezone
+from datetime import datetime
+from django.utils import timezone as django_timezone
 from decimal import Decimal, InvalidOperation
 from django.core.cache import cache
 from django.utils.dateparse import parse_datetime
 TICK_SIZE = Decimal('0.05')
 
 from .services import (
-    execute_buy, execute_sell,
+    execute_buy, execute_sell, fetch_candles,
     place_limit_buy, place_limit_sell,
     cancel_order,
     InsufficientFundsError, InsufficientHoldingsError,
@@ -29,9 +30,9 @@ class BuyView(APIView):
         idempotency_key = request.data.get("idempotency_key")
         expires  = request.data.get('expires_at')
         expires_at = parse_datetime(expires) if expires else None
-        if expires_at and expires_at <= datetime.now(timezone.utc):
+        if expires_at and expires_at <= django_timezone.now():
             return Response({"error": "Expiry time must be in the future"}, status=400)
-  
+        
         try:
             quantity = int(quantity)
         except (ValueError, TypeError):
@@ -75,9 +76,8 @@ class SellView(APIView):
 
         expires  = request.data.get('expires_at')
         expires_at = parse_datetime(expires) if expires else None
-        if expires_at and expires_at <= datetime.now(timezone.utc):
+        if expires_at and expires_at <= django_timezone.now():
             return Response({"error": "Expiry time must be in the future"}, status=400)
-        
         try:
             quantity = int(quantity)
         except (ValueError, TypeError):
@@ -157,7 +157,8 @@ class TradeHistoryView(APIView):
                 "limit_price":   ((Decimal(limit_prices[str(o.id)])) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE if str(o.id) in limit_prices else None,
                 "balance_after": Decimal(log.wallet_balance_after) if log else None,
                 "time":          o.created_at.isoformat(),
-                "executed_at":   log.executed_at.isoformat() if log else None,
+                "time":        o.created_at.isoformat(),
+                "executed_at": log.executed_at.isoformat() if log else (o.executed_at.isoformat() if o.executed_at else None),
                 "status":        o.status,
                 "is_limit":      str(o.id) in limit_prices,
                 
@@ -233,3 +234,23 @@ class HoldingsView(APIView):
             "symbol": h.stock.symbol,
             "quantity": h.quantity,
         } for h in holdings])
+
+
+class CandleStickGraphView(APIView):
+    permission_classes = [] 
+
+    def get(self, request, symbol):
+        interval = request.GET.get("interval", "1m")
+
+        try:
+            candles = fetch_candles(symbol, interval)
+            return Response({
+                "symbol": symbol,
+                "interval": interval,
+                "data": candles
+            })
+
+        except Stock.DoesNotExist:
+            return Response({"error": "Stock not found"}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)

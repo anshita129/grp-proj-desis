@@ -110,6 +110,22 @@ class LimitOrder(models.Model):
     order       = models.OneToOneField(Order, on_delete=models.CASCADE)
     limit_price = models.DecimalField(max_digits=12, decimal_places=2)
     expires_at  = models.DateTimeField(null=True, blank=True)  # auto-cancel after X days
+
+class StockPriceCandle(models.Model):
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE)
+
+    timestamp = models.DateTimeField()  # start of interval
+
+    open_price  = models.DecimalField(max_digits=10, decimal_places=2)
+    high_price  = models.DecimalField(max_digits=10, decimal_places=2)
+    low_price   = models.DecimalField(max_digits=10, decimal_places=2)
+    close_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    interval = models.CharField(max_length=10)  # "15m", "1d"
+
+    class Meta:
+        unique_together = ("stock", "timestamp", "interval")
+
 class DailyStockPrice(models.Model):
     """
     One price per stock per day → Perfect for 30-day charts!

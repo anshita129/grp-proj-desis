@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchStocks, fetchWallet, fetchHistory, fetchPending, cancelOrder, fetchHoldings } from "./api";
 import { useAuth } from "../../users/auth/AuthContext";
 import { getCookie } from "../../users/auth/http";
+import CandleChart from "./Candlestick";
 
 // Utility function 
 // converts a raw number into Indian-locale currency string (1234567.8  →  "₹12,34,567.80")
@@ -354,10 +355,12 @@ function OrderForm({ stocks, wallet, holdings, selectedSymbol, onSuccess }) {
 
 
 // --------------------------------------------------------------
-// COMPONENT 3: StockTable - Full-page searchable, filterable table of all stocks.
+// COMPONENT 3: Stock Table - Full-page searchable, filterable table of all stocks.
 function StockTable({ stocks, onSelect }) {
   const [search, setSearch] = useState("");     // text filter
   const [sector, setSector] = useState("ALL");  // sector dropdown filter
+  const [selectedChart, setSelectedChart] = useState(null);  // graph
+  const [chartPos, setChartPos] = useState({ x: 0, y: 0 });
 
   // Build the unique sector list from all stocks, prepend "ALL"
   const sectors = ["ALL", ...new Set(stocks.map(s => s.sector))];
@@ -367,6 +370,11 @@ function StockTable({ stocks, onSelect }) {
     (sector === "ALL" || s.sector === sector) &&
     (s.symbol.includes(search.toUpperCase()) || s.company.toLowerCase().includes(search.toLowerCase()))
   );
+  useEffect(() => {
+    const handleScroll = () => setSelectedChart(null);
+    window.addEventListener("scroll", handleScroll);  // ← remove the `true`
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <div className="rounded-2xl bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm overflow-hidden">
@@ -399,7 +407,7 @@ function StockTable({ stocks, onSelect }) {
           <thead>
             <tr className="border-b border-slate-700/50">
               {/* Column headers — last column ("") is for the TRADE button */}
-              {["Symbol", "Company", "Sector", "Last Traded Price", "Change", ""].map((h, i) => (
+              {["Symbol", "Company", "Sector", "Last Traded Price", "Change", "Trade", "Chart", ""].map((h, i) => (
                 <th key={i} className={`px-4 py-3 text-xs font-mono tracking-widest text-slate-500 font-medium uppercase ${i < 2 ? "text-left" : "text-right"}`}>
                   {h}
                 </th>
@@ -411,6 +419,7 @@ function StockTable({ stocks, onSelect }) {
             {filtered.map((s, i) => {
               const chg = s.change_pct;
               const pos = chg >= 0;
+
               return (
                 <tr key={s.symbol}
                   className={`border-b border-slate-700/20 cursor-pointer transition-colors hover:bg-indigo-500/5 ${i % 2 === 0 ? "" : "bg-slate-900/20"}`}
@@ -437,12 +446,62 @@ function StockTable({ stocks, onSelect }) {
                       className="px-3 py-1 text-xs font-mono tracking-widest text-slate-500 border border-slate-700/50 rounded hover:border-indigo-500 hover:text-indigo-400 transition-colors"
                     >TRADE</button>
                   </td>
+
+                  {/* Stock history — candlestick graph */}
+                  <td className="px-4 py-3 text-right">
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChartPos({
+                          x: e.clientX, // Position relative to the visible window
+                          y: e.clientY,
+                        });
+                        setSelectedChart(s.symbol);
+                      }}
+                      className="px-3 py-1 text-xs font-mono tracking-widest text-indigo-400 border border-indigo-500/30 rounded hover:bg-indigo-500/10 transition-colors"
+                    >CHART</button>
+
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Chart modal */}
+      {selectedChart && (
+        <>
+          {/* Full screen invisible backdrop — catches outside clicks */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setSelectedChart(null)}
+          />
+
+          {/* Chart popup */}
+          <div
+            className="fixed z-50 bg-slate-900 rounded-xl p-4 border border-slate-700 shadow-2xl"
+            style={{
+              left: `${Math.min(chartPos.x - 1250, window.innerWidth - 870)}px`,
+              top: `${Math.min(chartPos.y - 150, window.innerHeight - 540)}px`,
+              width: "850px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-mono font-bold text-indigo-400">
+                {selectedChart} — Price Chart
+              </h2>
+              <button
+                onClick={() => setSelectedChart(null)}
+                className="text-slate-500 hover:text-white transition-colors"
+              >✕</button>
+            </div>
+            <CandleChart symbol={selectedChart} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -478,11 +537,9 @@ function TradeHistory({ history }) {
                 {/* Formatted timestamp: "12 Mar, 14:32" */}
                 <td className="px-4 py-3 text-xs font-mono text-slate-500">
                   <div>{new Date(t.time).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}</div>
-                  {t.is_limit && t.time && t.status !== "CANCELLED" && (
-                    <div className="text-amber-400 mt-0.5">
-                      exec {new Date(t.executed_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}
-                    </div>
-                  )}
+                  <div className="text-amber-400 mt-0.5">
+                    exec {new Date(t.executed_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}
+                  </div>
                 </td>
 
                 {/* Stock symbol */}

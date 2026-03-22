@@ -1,9 +1,10 @@
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
-from .models import Wallet, Stock, Order, Holding, TradeLog, LimitOrder
+from .models import StockPriceCandle, Wallet, Stock, Order, Holding, TradeLog, LimitOrder
 import pytz
 import uuid
+from collections import defaultdict
 
 # CUSTOM EXCEPTIONS
 # These are custom error types we raise so views.py can catch them specifically
@@ -586,19 +587,11 @@ def check_limit_orders():
             # If one order fails, skip it and continue with the rest
             continue
 
-    # Auto-cancel expired limit orders 
-    # expires_at__lt: expires_at is less than now
-    expired = LimitOrder.objects.filter(
-        order__status=Order.Status.PENDING,
-        expires_at__lt=timezone.now()
-    ).select_related('order__student')
-
-
     return executed
 
 
 # cancel orders that are pending 
-def cancel_order(student, order_id, expire) -> Order:
+def cancel_order(student, order_id, expire=False) -> Order:
     """
     Cancels a PENDING order.
     For limit buy orders — refunds the reserved money back to wallet.
@@ -644,8 +637,77 @@ def cancel_order(student, order_id, expire) -> Order:
             holding.save(update_fields=['quantity', 'updated_at'])
             
         # update status to cancelled
-
         order.status = Order.Status.CANCELLED if not expire else Order.Status.EXPIRED
-        order.save(update_fields=['status'])
+        order.executed_at = timezone.now()
+        order.save(update_fields=['status', 'executed_at'])
 
         return order
+ 
+INTERVAL_MAP = {
+    "1m":  1,
+    "5m":  5,
+    "15m": 15,
+    "30m": 30,
+    "1h":  60,
+    "1d":  1440,
+}
+
+def fetch_candles(symbol, interval):
+    stock = Stock.objects.get(symbol=symbol)
+
+    # always fetch base 1m candles
+    base_candles = list(
+        StockPriceCandle.objects.filter(stock=stock, interval="1m")
+        .order_by("-timestamp")[:500]
+    )
+    base_candles.reverse()
+
+    if interval == "1m":
+        return [{
+            "time":  c.timestamp.isoformat(),
+            "open":  float(c.open_price),
+            "high":  float(c.high_price),
+            "low":   float(c.low_price),
+            "close": float(c.close_price),
+        } for c in base_candles]
+
+    minutes = INTERVAL_MAP.get(interval)
+    if not minutes:
+        raise ValueError(f"Invalid interval: {interval}")
+
+    return aggregate_candles(base_candles, minutes)
+
+def aggregate_candles(candles, minutes):
+    result = {}
+
+    for c in candles:
+        ts = c.timestamp
+
+        if minutes >= 1440:
+            bucket = ts.date()
+        else:
+            bucket = ts.replace(
+                minute=(ts.minute // minutes) * minutes,
+                second=0, microsecond=0
+            )
+
+        if bucket not in result:
+            result[bucket] = {
+                "time":  ts,
+                "open":  c.open_price,
+                "high":  c.high_price,
+                "low":   c.low_price,
+                "close": c.close_price,
+            }
+        else:
+            result[bucket]["high"]  = max(result[bucket]["high"],  c.high_price)
+            result[bucket]["low"]   = min(result[bucket]["low"],   c.low_price)
+            result[bucket]["close"] = c.close_price
+            
+    return [{
+        "time":  v["time"].isoformat() if hasattr(v["time"], "isoformat") else str(v["time"]),
+        "open":  float(v["open"]),
+        "high":  float(v["high"]),
+        "low":   float(v["low"]),
+        "close": float(v["close"]),
+    } for v in result.values()]

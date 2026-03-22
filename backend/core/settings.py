@@ -51,7 +51,6 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'rest_framework',
     'corsheaders',
-    'rest_framework.authtoken',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -200,7 +199,7 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "django_cache",
     }
-
+}
 # Email
 # Dev-friendly default is console backend. To send real emails (e.g., password reset OTP),
 # set SMTP env vars (EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD) or explicitly set
