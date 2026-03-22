@@ -3,7 +3,7 @@ from django.utils import timezone  # ← ADD THIS
 from datetime import timedelta, date 
 from collections import defaultdict
 from django.db.models import Sum, Count, Max, Avg
-
+from decimal import Decimal
 
 def get_portfolio_summary(user):
     holdings = Holding.objects.filter(student=user).select_related('stock')
@@ -327,59 +327,72 @@ def get_order_analytics(user):
     return metrics
 
 def get_portfolio_total_value_history(user, days=30):
-    """
-    Returns daily TOTAL portfolio value for last N days
-    Format: [{"date": "2026-03-04", "total_value": 25592.50}, ...]
-    """
-    from datetime import timedelta, date
-    from django.utils import timezone
-    from django.db.models import Sum, F
-    
     end_date = timezone.now().date()
     start_date = end_date - timedelta(days=days)
-    
-    # Get holdings snapshot
-    holdings = Holding.objects.filter(
-        student=user,
-        quantity__gt=0
-    ).select_related('stock').values(
-        'stock_id', 
-        'quantity'
-    )
-    
-    # Get daily prices for all holding stocks
+
+    # All trades ever
+    trades = TradeLog.objects.filter(student=user).order_by('executed_at')
+
+    if not trades.exists():
+        return []
+
+    # Only fetch prices for stocks the user actually holds
+    user_symbols = list(trades.values_list('stock_symbol', flat=True).distinct())
+
     prices = DailyStockPrice.objects.filter(
-        stock_id__in=[h['stock_id'] for h in holdings],
-        date__range=[start_date, end_date]
-    ).values('date', 'stock_id', 'close_price')
-    
-    # Build daily total values
-    daily_totals = {}
-    for price in prices:
-        date_str = price['date'].strftime('%Y-%m-%d')
-        if date_str not in daily_totals:
-            daily_totals[date_str] = {}
-        daily_totals[date_str][price['stock_id']] = price['close_price']
-    
-    # Calculate portfolio value each day
+        date__range=[start_date, end_date],
+        stock__symbol__in=user_symbols
+    ).values('date', 'stock__symbol', 'close_price')
+
+    # Build price lookup: {date: {symbol: price}}
+    price_lookup = defaultdict(dict)
+    for p in prices:
+        price_lookup[p['date']][p['stock__symbol']] = p['close_price']
+
+    # PHASE 1 — Pre-compute holdings state BEFORE the 30-day window
+    running = defaultdict(float)
+    for trade in trades:
+        if trade.executed_at.date() < start_date:
+            if trade.order_type == 'BUY':
+                running[trade.stock_symbol] += trade.quantity
+            else:
+                running[trade.stock_symbol] -= trade.quantity
+
+    # PHASE 2 — Index trades that fall WITHIN the window by date
+    trades_by_date = defaultdict(list)
+    for trade in trades:
+        d = trade.executed_at.date()
+        if start_date <= d <= end_date:
+            trades_by_date[d].append(trade)
+
+    # PHASE 3 — Walk forward day by day, applying trades as we go
     history = []
     for day in range(days + 1):
-        target_date = end_date - timedelta(days=day)
-        date_str = target_date.strftime('%Y-%m-%d')
-        
-        daily_value = 0
-        for holding in holdings:
-            stock_id = holding['stock_id']
-            price = daily_totals.get(date_str, {}).get(stock_id)
-            if price:
-                daily_value += holding['quantity'] * price
-        
+        target = start_date + timedelta(days=day)
+
+        # Apply trades that happened on this exact day
+        for trade in trades_by_date[target]:
+            if trade.order_type == 'BUY':
+                running[trade.stock_symbol] += trade.quantity
+            else:
+                running[trade.stock_symbol] -= trade.quantity
+
+        # Multiply current holdings × that day's closing price
+        day_prices = price_lookup.get(target, {})
+        daily_value = sum(
+            Decimal(str(qty)) * day_prices[sym]
+            for sym, qty in running.items()
+            if qty > 0 and sym in day_prices
+        )
+
         history.append({
-            'date': date_str,
-            'total_value': round(daily_value, 2)
+            'date': str(target),
+            'total_value': round(float(daily_value), 2)
         })
-    
-    return sorted(history, key=lambda x: x['date'])
+
+    return history
+
+
 
 
 def get_risk_score(user):
@@ -591,3 +604,16 @@ def get_behavioral_flags(user):
         "flags": flags,
         "flag_count": len(flags)
     }
+
+def update_stock_prices():
+    # ... your existing price update logic ...
+
+    # ← ADD THIS after prices update
+    from users.models import User  # or however you import your user model
+    for user in User.objects.all():
+        holdings = user.holdings.all()  # adjust to your actual related name
+        total = sum(
+            Decimal(str(h.quantity)) * h.stock.current_price
+            for h in holdings
+        )
+        PortfolioSnapshot.objects.create(student=user, total_value=total)

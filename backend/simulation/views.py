@@ -154,3 +154,18 @@ class InteractiveSimulationView(APIView):
             })
             
         return Response({"error": "Unknown action"}, status=400)
+
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from .models import SimulationSession
+from .serializers import SimulationSessionSerializer
+
+class SimulationSessionViewSet(viewsets.ModelViewSet):
+    serializer_class = SimulationSessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return SimulationSession.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
