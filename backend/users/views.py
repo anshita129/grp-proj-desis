@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import secrets
+import os
 from decimal import Decimal
 
 from django.contrib.auth import authenticate, get_user_model, login, logout
@@ -131,19 +132,29 @@ def logout_view(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def oauth_status(request):
-<<<<<<< HEAD
+    # try:
+    #     from allauth.socialaccount.models import SocialApp  # type: ignore
+    #     qs = SocialApp.objects.filter(provider="google")
+    #     google_configured = qs.exclude(client_id__isnull=True).exclude(client_id="").exists()
+    # except Exception:
+    #     google_configured = False
+    # import os
+    # client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+    # google_configured = bool(client_id) and "replace_me" not in client_id and "your_google_oauth_client_id_here" not in client_id
     google_configured = False
     try:
-        from allauth.socialaccount.models import SocialApp  # type: ignore
-        qs = SocialApp.objects.filter(provider="google")
-        google_configured = qs.exclude(client_id__isnull=True).exclude(client_id="").exists()
+        client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+        if client_id and "replace_me" not in client_id:
+            google_configured = True
+        else:
+            # Fall back to checking allauth DB
+            from allauth.socialaccount.models import SocialApp
+            google_configured = SocialApp.objects.filter(
+                provider="google"
+            ).exclude(client_id__isnull=True).exclude(client_id="").exists()
     except Exception:
         google_configured = False
-=======
-    import os
-    client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
-    google_configured = bool(client_id) and "replace_me" not in client_id and "your_google_oauth_client_id_here" not in client_id
->>>>>>> kanishka
+
 
     return Response({"google_configured": google_configured})
 
