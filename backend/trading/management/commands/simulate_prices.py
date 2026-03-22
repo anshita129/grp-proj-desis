@@ -1,10 +1,10 @@
+from django.utils import timezone
 import random
 import time
 from decimal import Decimal
 from django.core.management.base import BaseCommand
-from trading.models import Stock
+from trading.models import Stock, StockPriceCandle
 from trading.services import check_limit_orders
-from django.core.cache import cache
 
 
 # Different sectors move differently in real markets
@@ -51,19 +51,15 @@ class Command(BaseCommand):
             help='Apply slight upward market drift (default: True)')
         parser.add_argument('--no-drift', dest='drift', action='store_false',
             help='Disable upward market drift')
-        #parser.add_argument('--no-history', action='store_true', default=False,
-        #    help='Skip writing to PriceHistory table (faster for testing)')
 
     def handle(self, *args, **options):
         interval        = options['interval']
         vol_override    = options['volatility']
         apply_drift     = options['drift']
-        #skip_history    = options['no_history']
 
         self.stdout.write(self.style.SUCCESS(
             f'Price simulation started — every {interval}s | '
             f'drift={"on" if apply_drift else "off"} | '
-           # f'history={"off" if skip_history else "on"}'
         ))
 
         tick = 0  # track number of updates for logging
@@ -81,8 +77,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(
                     f' Market event — broad {direction} move ({round(float(market_shock)*100, 3)}%)'
                 ))
-
-            # price_history_bulk = []  # batch inserts for performance
 
             for stock in stocks:
                 # Get volatility for this sector
@@ -110,22 +104,19 @@ class Command(BaseCommand):
                 new_price = max(new_price, Decimal('1.00'))
                 new_price = round(new_price, 2)
 
-                # CALCULATE CHANGE HERE
+                # Calculate change 
                 change = new_price - old_price
                 change_pct_val = (change / old_price * 100) if old_price else Decimal('0')
 
-                # SAVE EVERYTHING
+                # Save
                 stock.current_price = new_price
                 stock.change = round(change, 2)
                 stock.change_pct = round(change_pct_val, 2)
 
                 stock.save(update_fields=['current_price', 'change', 'change_pct', 'last_updated'])
-
-                # Prepare price history entry for bulk insert
-                #if not skip_history:
-                #    price_history_bulk.append(
-                #        PriceHistory(stock=stock, price=new_price)
-                #    )
+                
+                # for the candlestick graphs 
+                update_candle(stock,new_price)
 
                 # Console output — show arrow direction and % change
                 arrow      = "↑" if new_price >= old_price else "↓"
@@ -133,10 +124,6 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f'{arrow} {stock.symbol:14} ₹{new_price:>10} {change_str:>8}  [{stock.sector}]'
                 )
-
-                # Bulk insert all price history in one DB call — much faster than one by one
-                # if not skip_history and price_history_bulk:
-                #    PriceHistory.objects.bulk_create(price_history_bulk)
 
             # Check if any limit orders can now be executed at new prices
             try:
@@ -149,10 +136,56 @@ class Command(BaseCommand):
                     f' {executed} limit order(s) executed'
                 ))
 
-
             self.stdout.write(f'{"─" * 60}  tick #{tick}')
-
-            #self.stdout.write(
-            #    f'{"─" * 60}  tick #{tick} | {len(price_history_bulk)} prices recorded'
-            #)
             time.sleep(interval)
+
+
+CANDLE_INTERVAL_MINUTES = 1
+buffer = {}  # { symbol: { timestamp, open, high, low, close } }
+
+def update_candle(stock,new_price):
+    now = timezone.now()
+    minutes = CANDLE_INTERVAL_MINUTES
+    bucket = now.replace(
+        minute=(now.minute // minutes) * minutes,
+        second=0, microsecond=0
+    )
+
+    sym = stock.symbol
+
+    if sym not in buffer or buffer[sym]["timestamp"] != bucket:
+        # flush old candle to DB if one exists
+        if sym in buffer:
+            _flush_candle(stock, buffer[sym])
+        # start new candle
+        buffer[sym] = {
+            "timestamp": bucket,
+            "open":  new_price,  
+            "high":  new_price,
+            "low":   new_price,
+            "close": new_price,   
+        }
+    else:
+        c = buffer[sym]
+        c["high"]  = max(c["high"], new_price)
+        c["low"]   = min(c["low"],  new_price)
+        c["close"] = new_price
+
+def _flush_candle(stock, c):
+    high = max(c["open"], c["high"], c["close"])
+    low  = min(c["open"], c["low"],  c["close"])
+    
+    StockPriceCandle.objects.update_or_create(
+        stock=stock,
+        timestamp=c["timestamp"],
+        interval=f"{CANDLE_INTERVAL_MINUTES}m",
+        defaults={
+            "open_price":  c["open"],
+            "high_price":  high,
+            "low_price":   low,
+            "close_price": c["close"],
+        }
+    )
+# right now i am not deleting from the db, but we should eventually do that 
+#    StockPriceCandle.objects.filter(
+#    timestamp__lt=timezone.now() - timedelta(days=7)).delete()

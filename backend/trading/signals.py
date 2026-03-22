@@ -1,10 +1,9 @@
+from django.utils import timezone
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.utils import timezone
-from trading.models import Stock, DailyStockPrice, Wallet
-from django.conf import settings
 from django.core.management import call_command
 from django.contrib.auth import get_user_model
+from trading.models import DailyStockPrice, Stock
 
 User = get_user_model()
 
@@ -29,7 +28,7 @@ def save_daily_price_on_update(sender, instance, **kwargs):
     Every time a Stock is saved/updated,
     automatically record today's price in DailyStockPrice
     """
-    today = timezone.now().date()
+    today = timezone.now().date() # type: ignore
     
     obj, created = DailyStockPrice.objects.update_or_create(
         stock=instance,
