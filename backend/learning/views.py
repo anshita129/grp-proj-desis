@@ -28,10 +28,11 @@ class ModuleListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         return Module.objects.annotate(
-            total_lessons=Count('lessons'),
+            total_lessons=Count('lessons', distinct=True),
             lessons_done=Count(
                 'lessons',
                 filter=Q(lessons__progress__user=user),
+                distinct=True,
             ),
         )
 

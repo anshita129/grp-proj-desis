@@ -220,3 +220,63 @@ class QuizSubmitIntegrationTest(TestCase):
         self.assertEqual(len(resp.data), 3)
         for b in resp.data:
             self.assertFalse(b['awarded'])
+
+
+class ModuleProgressAggregationTest(TestCase):
+    """Regression test for multiple users affecting Module progress counts."""
+
+    def setUp(self):
+        self.client1 = APIClient()
+        self.user1 = User.objects.create_user(username='u1', password='p1')
+        self.client1.force_authenticate(user=self.user1)
+
+        self.client2 = APIClient()
+        self.user2 = User.objects.create_user(username='u2', password='p2')
+        self.client2.force_authenticate(user=self.user2)
+
+        # Create 1 module with 3 lessons
+        self.module = Module.objects.create(title='Bug Module', slug='bug-module')
+        self.lessons = [
+            Lesson.objects.create(module=self.module, title=f'L{i}', order=i)
+            for i in range(3)
+        ]
+
+    def test_total_lessons_remains_constant(self):
+        """Verify total_lessons is 3 regardless of how many users have progress."""
+        # 0. Initial state: both should see 0/3
+        for client in [self.client1, self.client2]:
+            resp = client.get('/api/learning/modules/')
+            data = next(m for m in resp.data if m['slug'] == 'bug-module')
+            self.assertEqual(data['total_lessons'], 3)
+            self.assertEqual(data['lessons_done'], 0)
+
+        # 1. User 1 completes 1 lesson
+        LessonProgress.objects.create(user=self.user1, lesson=self.lessons[0])
+        
+        # User 1 should see 1/3
+        resp1 = self.client1.get('/api/learning/modules/')
+        data1 = next(m for m in resp1.data if m['slug'] == 'bug-module')
+        self.assertEqual(data1['total_lessons'], 3)
+        self.assertEqual(data1['lessons_done'], 1)
+
+        # User 2 should still see 0/3
+        resp2 = self.client2.get('/api/learning/modules/')
+        data2 = next(m for m in resp2.data if m['slug'] == 'bug-module')
+        self.assertEqual(data2['total_lessons'], 3)
+        self.assertEqual(data2['lessons_done'], 0)
+
+        # 2. User 2 completes 2 lessons
+        LessonProgress.objects.create(user=self.user2, lesson=self.lessons[0])
+        LessonProgress.objects.create(user=self.user2, lesson=self.lessons[1])
+
+        # User 1 should still see 1/3 (NOT 1/5 or 1/6)
+        resp1 = self.client1.get('/api/learning/modules/')
+        data1 = next(m for m in resp1.data if m['slug'] == 'bug-module')
+        self.assertEqual(data1['total_lessons'], 3)
+        self.assertEqual(data1['lessons_done'], 1)
+
+        # User 2 should see 2/3
+        resp2 = self.client2.get('/api/learning/modules/')
+        data2 = next(m for m in resp2.data if m['slug'] == 'bug-module')
+        self.assertEqual(data2['total_lessons'], 3)
+        self.assertEqual(data2['lessons_done'], 2)
