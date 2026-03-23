@@ -41,7 +41,6 @@ export default function PortfolioPage() {
   // Add this with your other useState declarations at the top of the component
 
   const [data, setData] = useState({
-    username: '',
     totalValue: 0,
     growth: 0,
     pnl: 0,
@@ -76,7 +75,6 @@ export default function PortfolioPage() {
         })
         .then(apiData => {
           setData({
-            username: 'Anshita',
             totalValue: apiData.summary.total_value,
             growth: apiData.summary.return_percent,
             pnl: apiData.summary.profit_loss,
@@ -142,8 +140,6 @@ export default function PortfolioPage() {
             >
               🔄 Refresh
             </button>
-            <span className="font-medium">{data.username}</span>
-            <div className="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center">A</div>
           </div>
         </div>
 
