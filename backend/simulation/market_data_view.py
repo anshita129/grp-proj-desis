@@ -12,7 +12,7 @@ class ScenariosView(APIView):
         if base_dir:
             data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend", "simulation", "data")
         else:
-            data_dir = "/home/kanishka/EduTrade/project/EduTrade/backend/simulation/data/"
+            data_dir = "/home/kanishka/desis/project/grp-proj-desis/backend/simulation/data/"
              
         csv_files = glob.glob(os.path.join(data_dir, "*.csv"))
         filenames = [os.path.basename(f) for f in csv_files]
@@ -31,7 +31,7 @@ class MarketDataView(APIView):
             data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend", "simulation", "data")
             csv_path = os.path.join(data_dir, scenario)
         else:
-            csv_path = f"/home/kanishka/EduTrade/project/EduTrade/backend/simulation/data/{scenario}"
+            csv_path = f"/home/kanishka/desis/project/grp-proj-desis/backend/simulation/data/{scenario}"
              
         if not os.path.exists(csv_path):
              return Response({"error": "CSV data not found."}, status=status.HTTP_404_NOT_FOUND)
