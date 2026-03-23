@@ -7,38 +7,38 @@ import {
 import { useAuth } from "../../users/auth/AuthContext"
 
 const SECTOR_COLORS = {
-  'Auto':         '#3B82F6',
-  'Banking':      '#10B981',
-  'Tech':         '#06B6D4',
-  'IT':           '#8B5CF6',
-  'Pharma':       '#EC4899',
-  'Healthcare':   '#F43F5E',
-  'Energy':       '#F97316',
-  'FMCG':         '#EAB308',
-  'Metals':       '#EF4444',
-  'Industrial':   '#84CC16',
-  'Services':     '#14B8A6',
-  'Cement':       '#A78BFA',
-  'Telecom':      '#38BDF8',
-  'Real Estate':  '#FB923C',
-  'Aviation':     '#4ADE80',
-  'Insurance':    '#F472B6',
-  'Retail':       '#FACC15',
+  'Auto': '#3B82F6',
+  'Banking': '#10B981',
+  'Tech': '#06B6D4',
+  'IT': '#8B5CF6',
+  'Pharma': '#EC4899',
+  'Healthcare': '#F43F5E',
+  'Energy': '#F97316',
+  'FMCG': '#EAB308',
+  'Metals': '#EF4444',
+  'Industrial': '#84CC16',
+  'Services': '#14B8A6',
+  'Cement': '#A78BFA',
+  'Telecom': '#38BDF8',
+  'Real Estate': '#FB923C',
+  'Aviation': '#4ADE80',
+  'Insurance': '#F472B6',
+  'Retail': '#FACC15',
   'Conglomerate': '#C084FC',
   'Construction': '#2DD4BF',
-  'Consumer':     '#FCA5A5',
-  'NBFC':         '#93C5FD',
-  'Unknown':      '#6B7280'
+  'Consumer': '#FCA5A5',
+  'NBFC': '#93C5FD',
+  'Unknown': '#6B7280'
 }
 
 export default function PortfolioPage() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
-  {/* HOLDINGS TABLE */}
+  {/* HOLDINGS TABLE */ }
   const [showAllHoldings, setShowAllHoldings] = useState(false)
 
-// Add this with your other useState declarations at the top of the component
+  // Add this with your other useState declarations at the top of the component
 
   const [data, setData] = useState({
     username: '',
@@ -66,9 +66,9 @@ export default function PortfolioPage() {
     }
 
     const fetchData = () => {
-      fetch('api/portfolio/my-portfolio/', {
+      fetch('/api/portfolio/my-portfolio/', {
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' } 
+        headers: { 'Content-Type': 'application/json' }
       })
         .then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -392,30 +392,27 @@ export default function PortfolioPage() {
             <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800">
               <h3 className="text-xl font-bold mb-6">Risk Score</h3>
               <div className="flex items-center space-x-6 mb-6">
-                <div className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 ${
-                  data.risk.level === 'HIGH' ? 'border-red-500 text-red-400' :
-                  data.risk.level === 'MEDIUM' ? 'border-yellow-500 text-yellow-400' :
-                  'border-green-500 text-green-400'
-                }`}>
+                <div className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 ${data.risk.level === 'HIGH' ? 'border-red-500 text-red-400' :
+                    data.risk.level === 'MEDIUM' ? 'border-yellow-500 text-yellow-400' :
+                      'border-green-500 text-green-400'
+                  }`}>
                   <div className="text-3xl font-black">{data.risk.score}</div>
                   <div className="text-xs">/100</div>
                 </div>
                 <div>
-                  <div className={`text-2xl font-bold ${
-                    data.risk.level === 'HIGH' ? 'text-red-400' :
-                    data.risk.level === 'MEDIUM' ? 'text-yellow-400' :
-                    'text-green-400'
-                  }`}>{data.risk.level} RISK</div>
+                  <div className={`text-2xl font-bold ${data.risk.level === 'HIGH' ? 'text-red-400' :
+                      data.risk.level === 'MEDIUM' ? 'text-yellow-400' :
+                        'text-green-400'
+                    }`}>{data.risk.level} RISK</div>
                   <div className="text-sm text-gray-400 mt-1">Based on your portfolio</div>
                 </div>
               </div>
               {data.risk.flags?.length > 0 ? (
                 <div className="space-y-3">
                   {data.risk.flags.map((flag, i) => (
-                    <div key={i} className={`flex items-start space-x-3 p-3 rounded-xl ${
-                      flag.severity === 'HIGH' ? 'bg-red-500/10 border border-red-500/20' :
-                      'bg-yellow-500/10 border border-yellow-500/20'
-                    }`}>
+                    <div key={i} className={`flex items-start space-x-3 p-3 rounded-xl ${flag.severity === 'HIGH' ? 'bg-red-500/10 border border-red-500/20' :
+                        'bg-yellow-500/10 border border-yellow-500/20'
+                      }`}>
                       <span className="text-lg">{flag.severity === 'HIGH' ? '🔴' : '🟡'}</span>
                       <div>
                         <div className="text-xs font-bold text-gray-400">{flag.type.replace('_', ' ')}</div>
@@ -437,12 +434,11 @@ export default function PortfolioPage() {
             <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800">
               <h3 className="text-xl font-bold mb-6">Diversification Index</h3>
               <div className="flex items-center space-x-6 mb-6">
-                <div className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 ${
-                  data.diversification.grade === 'A' ? 'border-green-500 text-green-400' :
-                  data.diversification.grade === 'B' ? 'border-purple-500 text-purple-400' :
-                  data.diversification.grade === 'C' ? 'border-yellow-500 text-yellow-400' :
-                  'border-red-500 text-red-400'
-                }`}>
+                <div className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 ${data.diversification.grade === 'A' ? 'border-green-500 text-green-400' :
+                    data.diversification.grade === 'B' ? 'border-purple-500 text-purple-400' :
+                      data.diversification.grade === 'C' ? 'border-yellow-500 text-yellow-400' :
+                        'border-red-500 text-red-400'
+                  }`}>
                   <div className="text-3xl font-black">{data.diversification.grade}</div>
                   <div className="text-xs">{data.diversification.score}/100</div>
                 </div>
@@ -460,11 +456,10 @@ export default function PortfolioPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Sector Exposure</span>
-                  <span className={`font-bold ${
-                    data.diversification.dominant_sector_percent > 60 ? 'text-red-400' :
-                    data.diversification.dominant_sector_percent > 40 ? 'text-yellow-400' :
-                    'text-green-400'
-                  }`}>{data.diversification.dominant_sector_percent}%</span>
+                  <span className={`font-bold ${data.diversification.dominant_sector_percent > 60 ? 'text-red-400' :
+                      data.diversification.dominant_sector_percent > 40 ? 'text-yellow-400' :
+                        'text-green-400'
+                    }`}>{data.diversification.dominant_sector_percent}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Number of Stocks</span>
@@ -488,9 +483,8 @@ export default function PortfolioPage() {
             </h3>
             <div className="grid grid-cols-2 gap-4">
               {data.behavioralFlags.map((flag, i) => (
-                <div key={i} className={`p-4 rounded-xl border ${
-                  flag.severity === 'HIGH' ? 'bg-red-500/10 border-red-500/20' : 'bg-yellow-500/10 border-yellow-500/20'
-                }`}>
+                <div key={i} className={`p-4 rounded-xl border ${flag.severity === 'HIGH' ? 'bg-red-500/10 border-red-500/20' : 'bg-yellow-500/10 border-yellow-500/20'
+                  }`}>
                   <div className="flex items-center space-x-2 mb-1">
                     <span>{flag.severity === 'HIGH' ? '🔴' : '🟡'}</span>
                     <span className="text-xs font-bold text-gray-400">{flag.type.replace(/_/g, ' ')}</span>
