@@ -1,19 +1,28 @@
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import Profile from "./Profile";
 
 function Navbar() {
-  const navigate = useNavigate();
+  const [showProfile, setShowProfile] = useState(false);
 
   return (
-    <div className="navbar">
-      <h2>Trading Platform</h2>
+    <>
+      <div className="navbar">
+        <h2>Trading Platform</h2>
 
-      <div 
-        style={{ cursor: "pointer" }} 
-        onClick={() => navigate("/profile")}
-      >
-        👤
+        <div
+          style={{ cursor: "pointer" }}
+          onClick={() => setShowProfile(true)}
+        >
+          👤
+        </div>
       </div>
-    </div>
+
+      {/* 🔥 PROFILE POPUP */}
+      <Profile
+        show={showProfile}
+        onClose={() => setShowProfile(false)}
+      />
+    </>
   );
 }
 

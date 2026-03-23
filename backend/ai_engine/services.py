@@ -1,8 +1,30 @@
 from datetime import timedelta
 from django.utils import timezone
 
-from trading.models import TradeLog
+from trading.models import TradeLog, Order
 from portfolio.models import Holding
+
+import joblib
+import os
+import pandas as pd
+
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+model = joblib.load(os.path.join(BASE_DIR, "ai_model.pkl"))
+le = joblib.load(os.path.join(BASE_DIR, "label_encoder.pkl"))
+
+
+FEATURE_COLUMNS = [
+    "total_orders",
+    "buy_orders",
+    "sell_orders",
+    "holdings_count",
+    "avg_trade_size",
+    "concentration",
+    "trades_last_7_days",
+    "avg_recent_trade_size",
+]
 
 
 def safe_float(x, default=0.0):
@@ -76,3 +98,50 @@ def get_rule_based_feedback(user):
         "risk_profile": risk_profile,
         "tips": tips,
     }
+
+
+def get_ml_prediction(user):
+    orders = Order.objects.filter(student=user)
+    holdings = Holding.objects.filter(user=user)
+    trades = TradeLog.objects.filter(student=user)
+
+    total_orders = orders.count()
+    buy_orders = orders.filter(order_type="BUY").count()
+    sell_orders = orders.filter(order_type="SELL").count()
+    holdings_count = holdings.count()
+
+    total_quantity = sum(h.quantity for h in holdings) if holdings.exists() else 0
+
+    avg_trade_size = 0.0
+    if trades.exists():
+        avg_trade_size = sum(safe_float(t.total_value) for t in trades) / trades.count()
+
+    max_holding = max((h.quantity for h in holdings), default=0)
+    concentration = max_holding / total_quantity if total_quantity > 0 else 0.0
+
+    last_7_days = timezone.now() - timedelta(days=7)
+    recent_trades = trades.filter(executed_at__gte=last_7_days)
+
+    trades_last_7_days = recent_trades.count()
+
+    avg_recent_trade_size = 0.0
+    if recent_trades.exists():
+        avg_recent_trade_size = (
+            sum(safe_float(t.total_value) for t in recent_trades) / recent_trades.count()
+        )
+
+    x = pd.DataFrame([{
+        "total_orders": total_orders,
+        "buy_orders": buy_orders,
+        "sell_orders": sell_orders,
+        "holdings_count": holdings_count,
+        "avg_trade_size": float(avg_trade_size),
+        "concentration": float(concentration),
+        "trades_last_7_days": trades_last_7_days,
+        "avg_recent_trade_size": float(avg_recent_trade_size),
+    }], columns=FEATURE_COLUMNS)
+
+    pred = model.predict(x)
+    label = le.inverse_transform(pred)[0]
+
+    return label
