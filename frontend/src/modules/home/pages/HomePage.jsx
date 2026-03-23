@@ -59,7 +59,7 @@ export default function HomePage() {
                         <span className="text-sm font-semibold text-indigo-300 tracking-wider w-full uppercase">Next-Generation Platform</span>
                     </div>
                     <h1 className="text-6xl md:text-7xl font-extrabold text-white tracking-tight">
-                        Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">GRP DESIS</span>
+                        Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">EduTrade</span>
                     </h1>
                     <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto leading-relaxed mt-6">
                         Your complete ecosystem for learning, building, and deploying professional-grade algorithmic trading strategies.

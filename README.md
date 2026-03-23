@@ -130,7 +130,7 @@ EMAIL_USE_TLS=true
 EMAIL_HOST_USER=your_email@gmail.com
 EMAIL_HOST_PASSWORD=your_app_password
 
-DEFAULT_FROM_EMAIL="GRP DESIS <your_email@gmail.com>"
+DEFAULT_FROM_EMAIL="EduTrade <your_email@gmail.com>"
 ```
 
 Then restart the Django server.

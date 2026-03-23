@@ -39,7 +39,7 @@ function AppShell() {
                     </button>
                     <div>
                         <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400 whitespace-nowrap">
-                            GRP DESIS
+                            EduTrade
                         </h1>
                     </div>
                     {/* Top nav links */}
