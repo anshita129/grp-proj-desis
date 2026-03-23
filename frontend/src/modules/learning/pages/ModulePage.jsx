@@ -143,6 +143,19 @@ function ModulePage() {
         {lessonContent ? (
           <div>
             <h1 className="text-3xl font-bold text-white mb-6">{lessonContent.title}</h1>
+
+            {/* Lesson image */}
+            {lessonContent.image_url && (
+              <div className="mb-8 rounded-2xl overflow-hidden border border-slate-700/60 shadow-xl shadow-black/30">
+                <img
+                  src={lessonContent.image_url}
+                  alt={lessonContent.title}
+                  className="w-full object-cover max-h-96"
+                  loading="lazy"
+                />
+              </div>
+            )}
+
             <div className="prose prose-invert prose-slate max-w-none text-slate-300 leading-relaxed text-lg whitespace-pre-line">
               {lessonContent.content}
             </div>

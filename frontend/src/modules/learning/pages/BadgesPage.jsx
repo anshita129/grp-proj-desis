@@ -47,6 +47,11 @@ function BadgesPage() {
               </div>
               <h3 className="text-lg font-bold text-white">{badge.name}</h3>
               <p className="mt-1 text-sm text-slate-400">{badge.description}</p>
+              {badge.reward_amount > 0 && (
+                <p className="mt-2 text-sm text-emerald-400 font-bold">
+                  Prize: ₹{badge.reward_amount.toLocaleString()}
+                </p>
+              )}
               {badge.awarded ? (
                 <p className="mt-3 text-xs text-amber-400 font-medium">
                   ✓ Earned {new Date(badge.awarded_at).toLocaleDateString()}

@@ -12,7 +12,7 @@ class LessonSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Lesson
-        fields = ['id', 'title', 'content', 'order', 'completed']
+        fields = ['id', 'title', 'content', 'image_url', 'order', 'completed']
 
     def get_completed(self, obj):
         request = self.context.get('request')
@@ -147,7 +147,7 @@ class BadgeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Badge
-        fields = ['id', 'name', 'description', 'icon_name', 'awarded', 'awarded_at']
+        fields = ['id', 'name', 'description', 'icon_name', 'reward_amount', 'awarded', 'awarded_at']
 
     def get_awarded(self, obj):
         request = self.context.get('request')
@@ -168,4 +168,4 @@ class NewBadgeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Badge
-        fields = ['id', 'name', 'description', 'icon_name']
+        fields = ['id', 'name', 'description', 'icon_name', 'reward_amount']

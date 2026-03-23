@@ -18,6 +18,11 @@ function BadgeUnlockModal({ badges, onClose }) {
               <div className="text-left">
                 <p className="font-semibold text-white">{badge.name}</p>
                 <p className="text-sm text-slate-400">{badge.description}</p>
+                {badge.reward_amount > 0 && (
+                  <p className="mt-1 text-sm font-bold text-emerald-400">
+                    Prize Awarded: ₹{badge.reward_amount.toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
           ))}

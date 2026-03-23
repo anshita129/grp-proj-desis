@@ -251,9 +251,9 @@ QUIZ_DATA = {
 # Badges
 # ────────────────────────────────────────────────────────────
 BADGES = [
-    {"name": "First Quiz Passed", "description": "Awarded when you pass your first quiz.", "icon_name": "star"},
-    {"name": "Perfect Score", "description": "Awarded when you score 10/10 on any quiz.", "icon_name": "trophy"},
-    {"name": "All Modules Complete", "description": "Awarded when you pass all 8 module quizzes.", "icon_name": "crown"},
+    {"name": "First Quiz Passed", "description": "Awarded when you pass your first quiz.", "icon_name": "star", "reward_amount": 1500},
+    {"name": "Perfect Score", "description": "Awarded when you score 10/10 on any quiz.", "icon_name": "trophy", "reward_amount": 2000},
+    {"name": "All Modules Complete", "description": "Awarded when you pass all 8 module quizzes.", "icon_name": "crown", "reward_amount": 10000},
 ]
 
 

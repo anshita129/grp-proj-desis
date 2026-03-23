@@ -34,6 +34,7 @@ class Lesson(models.Model):
     module = models.ForeignKey(Module, related_name='lessons', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     content = models.TextField()
+    image_url = models.URLField(blank=True, default='')
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -119,6 +120,7 @@ class Badge(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField()
     icon_name = models.CharField(max_length=50, blank=True, default='award')
+    reward_amount = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return self.name
