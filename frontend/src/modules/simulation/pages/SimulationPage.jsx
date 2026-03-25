@@ -4,6 +4,12 @@ import { csrfFetch, readJsonSafe } from "../../users/auth/http";
 
 const MARKET_DATA_URL = "/api/simulation/market-data/";
 const SCENARIOS_URL = "/api/simulation/scenarios/";
+const formatCurrency = (value, options = {}) =>
+  `₹${Number(value ?? 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    ...options,
+  })}`;
 
 function SimulationPage() {
   const [scenarios, setScenarios] = useState([]);
@@ -362,13 +368,13 @@ function SimulationPage() {
 
     if (side === 'Buy') {
       if (cash < cost) {
-        addLog(`[DECLINED] Insufficient cash for ${qty}x ${symbol} @ $${price.toFixed(2)}. Need $${cost.toFixed(2)}`);
+        addLog(`[DECLINED] Insufficient cash for ${qty}x ${symbol} @ ${formatCurrency(price)}. Need ${formatCurrency(cost)}`);
         return;
       }
       setCash(prev => prev - cost);
       setPortfolioPositions(prev => ({ ...prev, [symbol]: prev[symbol] + qty }));
       setTradeLog(prev => [...prev, { time: marketData[currentTick].timestamp, side: 'Buy', symbol, qty, price, cost }]);
-      addLog(`[FILLED] BUY ${qty} ${symbol} @ $${price.toFixed(2)} (-$${cost.toFixed(2)})`);
+      addLog(`[FILLED] BUY ${qty} ${symbol} @ ${formatCurrency(price)} (-${formatCurrency(cost)})`);
     } else if (side === 'Sell') {
       if (portfolioPositions[symbol] < qty) {
         addLog(`[DECLINED] Insufficient shares. Own ${portfolioPositions[symbol]}x ${symbol}, tried to sell ${qty}.`);
@@ -377,7 +383,7 @@ function SimulationPage() {
       setCash(prev => prev + cost);
       setPortfolioPositions(prev => ({ ...prev, [symbol]: prev[symbol] - qty }));
       setTradeLog(prev => [...prev, { time: marketData[currentTick].timestamp, side: 'Sell', symbol, qty, price, cost }]);
-      addLog(`[FILLED] SELL ${qty} ${symbol} @ $${price.toFixed(2)} (+$${cost.toFixed(2)})`);
+      addLog(`[FILLED] SELL ${qty} ${symbol} @ ${formatCurrency(price)} (+${formatCurrency(cost)})`);
     }
   };
 
@@ -453,13 +459,13 @@ function SimulationPage() {
           <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-2xl p-6 border border-slate-700 shadow-xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-150 duration-700"></div>
             <div className="text-sm font-semibold uppercase tracking-widest text-blue-400 mb-2">Net Asset Value</div>
-            <div className="text-4xl font-extrabold font-mono text-white tracking-tight">${nav.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-4xl font-extrabold font-mono text-white tracking-tight">{formatCurrency(nav)}</div>
           </div>
 
           <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-2xl p-6 border border-slate-700 shadow-xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10 transition-transform group-hover:scale-150 duration-700"></div>
             <div className="text-sm font-semibold uppercase tracking-widest text-emerald-400 mb-2">Available Cash</div>
-            <div className="text-4xl font-extrabold font-mono text-white tracking-tight">${cash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-4xl font-extrabold font-mono text-white tracking-tight">{formatCurrency(cash)}</div>
           </div>
 
           {uniqueSymbols.map((sym, idx) => {
@@ -525,10 +531,10 @@ function SimulationPage() {
                   </div>
                   <div className="text-left sm:text-right">
                     <div className={`text-4xl font-extrabold font-mono tracking-tighter ${colorClass} drop-shadow-[0_0_10px_rgba(0,0,0,0.5)]`}>
-                      ${currentPrice.toFixed(2)}
+                      {formatCurrency(currentPrice)}
                     </div>
                     <div className="text-sm font-medium text-slate-400 mt-1">
-                      Value: <span className="font-mono text-white">${((portfolioPositions[sym] || 0) * currentPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      Value: <span className="font-mono text-white">{formatCurrency((portfolioPositions[sym] || 0) * currentPrice)}</span>
                     </div>
                   </div>
                 </div>
@@ -631,9 +637,9 @@ function SimulationPage() {
                     <tr key={`holding-${sym}`} className={`hover:bg-slate-700/30 transition-colors ${idx % 2 === 0 ? 'bg-slate-800/30' : ''}`}>
                       <td className="px-6 py-4 font-bold text-white tracking-wider">{sym}</td>
                       <td className="px-6 py-4 font-mono text-right text-slate-200">{portfolioPositions[sym] || 0}</td>
-                      <td className="px-6 py-4 font-mono text-right text-slate-300">${(currentPrices[sym] || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 font-mono text-right text-slate-300">{formatCurrency(currentPrices[sym] || 0)}</td>
                       <td className="px-6 py-4 font-mono font-bold text-right text-emerald-400">
-                        ${((portfolioPositions[sym] || 0) * (currentPrices[sym] || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency((portfolioPositions[sym] || 0) * (currentPrices[sym] || 0))}
                       </td>
                     </tr>
                   ))}
@@ -680,8 +686,8 @@ function SimulationPage() {
                       </td>
                       <td className="px-4 py-3 font-bold text-white">{log.symbol}</td>
                       <td className="px-4 py-3 font-mono text-right text-slate-300">{log.qty}</td>
-                      <td className="px-4 py-3 font-mono text-right text-slate-300">${log.price.toFixed(2)}</td>
-                      <td className="px-6 py-3 font-mono text-right font-medium text-slate-200">${log.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 font-mono text-right text-slate-300">{formatCurrency(log.price)}</td>
+                      <td className="px-6 py-3 font-mono text-right font-medium text-slate-200">{formatCurrency(log.cost)}</td>
                     </tr>
                   ))}
                   {tradeLog.length === 0 && (
@@ -726,7 +732,7 @@ function SimulationPage() {
                         </div>
                         <div className="flex flex-wrap gap-3 text-xs text-slate-300 font-mono">
                           <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner flex flex-col"><span className="text-slate-500 uppercase text-[10px] tracking-wider mb-0.5">Time</span> {new Date(sess.updated_at).toLocaleDateString()} {new Date(sess.updated_at).toLocaleTimeString()}</span>
-                          <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner flex flex-col"><span className="text-slate-500 uppercase text-[10px] tracking-wider mb-0.5">NAV</span> <span className="text-blue-400 font-bold">${sess.nav?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></span>
+                          <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner flex flex-col"><span className="text-slate-500 uppercase text-[10px] tracking-wider mb-0.5">NAV</span> <span className="text-blue-400 font-bold">{formatCurrency(sess.nav)}</span></span>
                           <span className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner flex flex-col"><span className="text-slate-500 uppercase text-[10px] tracking-wider mb-0.5">Tick</span> <span className="text-emerald-400 font-bold">{sess.current_tick}</span></span>
                         </div>
                       </div>

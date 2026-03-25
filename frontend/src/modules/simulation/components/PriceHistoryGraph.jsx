@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { ComposedChart, Bar, ResponsiveContainer, YAxis, XAxis, CartesianGrid, Tooltip } from 'recharts';
 
+const formatCurrency = (value) => `₹${Number(value ?? 0).toFixed(2)}`;
+
 const CandlestickRender = (props) => {
   const { x, y, width, height, payload } = props;
   const { open, high, low, close } = payload;
@@ -65,8 +67,8 @@ const PriceHistoryGraph = ({ marketData, currentTick, symbol }) => {
               contentStyle={{ backgroundColor: '#1e293b', borderColor: '#475569', color: '#f8fafc' }}
               itemStyle={{ color: '#e2e8f0' }}
               formatter={(value, name, props) => {
-                if (name === 'range') return [`O: ${props.payload.open.toFixed(2)} | C: ${props.payload.close.toFixed(2)}`, 'Market Value'];
-                return [value, name];
+                if (name === 'range') return [`O: ${formatCurrency(props.payload.open)} | C: ${formatCurrency(props.payload.close)}`, 'Market Value'];
+                return [formatCurrency(value), name];
               }}
             />
             <Bar
