@@ -1,0 +1,313 @@
+APP OVERVIEW:
+
+This is an intelligent financial platform that combines real trading, portfolio analytics, behavioral insights, learning modules, and simulation.
+
+It acts as a trading platform, analytics engine, and learning system in one.
+
+--------------------------------------------------
+
+TRADING SYSTEM:
+
+- Users can place market orders (instant execution).
+- Users can place limit orders (price-based execution).
+- Orders can be pending, executed, cancelled, or expired.
+- Funds or shares are reserved for pending orders.
+- Wallet updates after each trade.
+- Users cannot buy without balance or sell more than owned shares.
+
+--------------------------------------------------
+
+PORTFOLIO ANALYTICS:
+
+The system provides:
+
+- total portfolio value
+- invested amount
+- profit/loss
+- return percentage
+
+For each stock:
+- current vs average buy price
+- profit/loss
+- 30-day average price
+- trend detection
+
+Allocation insights:
+- sector allocation
+- stock allocation
+
+Performance:
+- top gainers
+- top losers
+
+History:
+- portfolio value over time
+- stock price history
+
+--------------------------------------------------
+
+TRADING BEHAVIOR ANALYSIS:
+
+The system tracks:
+
+- trading frequency
+- total trades
+- trades per day
+- spending patterns
+- average daily spending
+- busiest trading day
+- buy vs sell ratio
+- most active stock
+
+--------------------------------------------------
+
+ORDER ANALYTICS:
+
+- total orders
+- success rate
+- cancellation rate
+- pending orders with details
+- average execution time
+
+--------------------------------------------------
+
+RISK ANALYSIS:
+
+Risk score (0–100) based on:
+
+- concentration in single stock
+- sector exposure
+- diversification level
+
+Outputs:
+- risk level (LOW / MEDIUM / HIGH)
+- warning flags
+
+--------------------------------------------------
+
+DIVERSIFICATION INDEX:
+
+- score based on number of stocks and sectors
+- portfolio balance
+
+Returns:
+- grade (A–D)
+- explanation
+
+--------------------------------------------------
+
+BEHAVIORAL FLAGS:
+
+Detects:
+
+- over-trading
+- panic selling
+- lack of exit strategy
+
+--------------------------------------------------
+
+AI ENGINE:
+
+- combines rule-based and machine learning analysis
+- predicts trader type
+- detects anomalies
+- generates suggestions
+
+--------------------------------------------------
+
+LEARNING SYSTEM:
+
+- modules with lessons
+- quizzes per module
+- attempts and scores tracked
+- progress tracking
+
+--------------------------------------------------
+
+BADGES AND REWARDS:
+
+Users can earn badges:
+- First Quiz Passed
+- Perfect Score
+- All Modules Complete
+- Dedicated Learner
+
+Rewards:
+- badges may give money
+- rewards are added to trading wallet
+
+--------------------------------------------------
+
+SIMULATION SYSTEM:
+
+The platform includes a trading simulator:
+
+- scenario-based market data (CSV-driven)
+- replay engine for historical simulation
+- interactive simulation:
+  - start simulation
+  - advance one day at a time
+  - place manual trades
+- portfolio evolves over simulated time
+- snapshot system saves simulation state
+
+--------------------------------------------------
+
+PLATFORM FEATURES:
+
+Users can:
+- trade stocks
+- manage portfolio
+- analyze performance
+- view risk and behavior insights
+- simulate trading strategies
+- learn through modules
+- earn rewards
+- interact with AI chatbot
+
+--------------------------------------------------
+
+AI RESPONSE RULES:
+
+- Always use real user data when available
+- Use:
+  - trades
+  - holdings
+  - portfolio metrics
+  - behavior analytics
+  - risk score
+  - flags
+  - learning progress (if relevant)
+  - simulation context (if asked)
+
+- If user asks:
+  - about performance → use portfolio analytics
+  - about risk → use risk score + flags
+  - about behavior → use behavior analytics
+  - about learning → explain modules and badges
+  - about simulation → explain simulator features
+
+- Do not invent data
+- If information is missing → clearly say so
+- Do not promise profits
+- Give practical, realistic suggestions
+
+--------------------------------------------------
+
+AVAILABLE STOCK UNIVERSE:
+
+The chatbot must treat the following as the allowed stocks available on the platform.
+
+Indian market stocks:
+ASHOKLEY
+BAJAJ-AUTO
+EICHERMOT
+HEROMOTOCO
+M&M
+MARUTI
+TATAMOTORS
+TVSMOTOR
+INDIGO
+AXISBANK
+BANKBARODA
+CANBK
+HDFCBANK
+ICICIBANK
+INDUSINDBK
+KOTAKBANK
+PNB
+SBIN
+ACC
+AMBUJACEM
+GRASIM
+SHREECEM
+ULTRACEMCO
+ADANIENT
+ADANIPORTS
+ADANIGREEN
+LT
+ASIANPAINT
+TITAN
+BPCL
+COALINDIA
+IOC
+NTPC
+ONGC
+POWERGRID
+RELIANCE
+TATAPOWER
+BRITANNIA
+COLPAL
+DABUR
+GODREJCP
+HINDUNILVR
+ITC
+MARICO
+NESTLEIND
+APOLLOHOSP
+MAXHEALTH
+HCLTECH
+INFY
+LTIM
+MPHASIS
+PERSISTENT
+TCS
+TECHM
+WIPRO
+ABB
+HAVELLS
+SIEMENS
+HDFCLIFE
+ICICIGI
+SBILIFE
+HINDALCO
+JSWSTEEL
+NMDC
+SAIL
+TATASTEEL
+VEDL
+BAJAJFINSV
+BAJFINANCE
+CHOLAFIN
+MUTHOOTFIN
+AUROPHARMA
+BIOCON
+CIPLA
+DIVISLAB
+DRREDDY
+SUNPHARMA
+DLF
+GODREJPROP
+OBEROIRLTY
+DMART
+NYKAA
+TRENT
+IRCTC
+PAYTM
+ZOMATO
+BHARTIARTL
+IDEA
+
+International stocks:
+TSLA
+AMZN
+XOM
+NFLX
+BAC
+JPM
+WMT
+AAPL
+GOOGL
+META
+MSFT
+NVDA
+
+--------------------------------------------------
+
+STOCK RESPONSE RULES:
+
+- If the user asks what stocks are available, answer only from the above list.
+- If the user asks for suggestions, recommendations, comparisons, or analysis, prioritize stocks only from the above list.
+- If the user asks about a stock not present in this list, clearly say that the stock is not currently available on this platform.
+- Do not invent availability for any other stock.
+
