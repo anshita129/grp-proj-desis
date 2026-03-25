@@ -301,10 +301,10 @@ def profile_view(request):
             f"{log.order_type} {log.quantity} shares of {log.stock_symbol} at ₹{log.price}"
         )
 
-    if latest_ai:
+    if latest_ai and latest_ai.summary:
         recent_activity.append(
-            f"Latest AI insight: {latest_ai.risk_profile} risk profile"
-        )
+        f"Latest AI insight: {latest_ai.summary[:100]}"
+    )
 
     return Response({
         "name": user.username,
@@ -321,9 +321,6 @@ def profile_view(request):
         "sell_orders": orders.filter(order_type="SELL").count(),
 
         "ai_usage_count": ai_count,
-        "risk_profile": latest_ai.risk_profile if latest_ai else "Not available",
-        "trader_type": latest_ai.trader_type if latest_ai and latest_ai.trader_type else "Not available",
-        "anomaly_detected": latest_ai.anomaly_detected if latest_ai else False,
         "ai_summary": latest_ai.summary if latest_ai and latest_ai.summary else "No AI summary available",
 
         "recent_activity": recent_activity[:5],

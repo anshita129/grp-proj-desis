@@ -8,9 +8,6 @@ class AIInsightSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "risk_profile",
-            "trader_type",
-            "anomaly_detected",
-            "anomaly_score",
             "summary",
             "created_at",
         ]
