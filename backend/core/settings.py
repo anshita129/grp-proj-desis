@@ -132,33 +132,40 @@ WSGI_APPLICATION = 'core.wsgi.application'
 #     }
 # }
 
-if os.environ.get('DB_ENGINE'):
-    # Use whatever engine the env specifies (PostgreSQL, SQLite, etc.)
-    DATABASES = {
-        'default': {
-            'ENGINE': os.environ['DB_ENGINE'],
-            'NAME': os.environ.get(
-                'DB_NAME',
-                BASE_DIR / 'db.sqlite3' if 'sqlite3' in os.environ['DB_ENGINE'] else 'default_db',
-            ),
-            'USER': os.environ.get('DB_USER', ''),
-            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
-        }
+# if os.environ.get('DB_ENGINE'):
+#     # Use whatever engine the env specifies (PostgreSQL, SQLite, etc.)
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': os.environ['DB_ENGINE'],
+#             'NAME': os.environ.get(
+#                 'DB_NAME',
+#                 BASE_DIR / 'db.sqlite3' if 'sqlite3' in os.environ['DB_ENGINE'] else 'default_db',
+#             ),
+#             'USER': os.environ.get('DB_USER', ''),
+#             'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+#             'HOST': os.environ.get('DB_HOST', 'localhost'),
+#             'PORT': os.environ.get('DB_PORT', '5432'),
+#         }
+#     }
+# else:
+#     # Default to PostgreSQL when DB_ENGINE is not provided
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.postgresql',
+#             'NAME': os.environ.get('DB_NAME', 'default_db'),
+#             'USER': os.environ.get('DB_USER', 'default_user'),
+#             'PASSWORD': os.environ.get('DB_PASSWORD', 'changeit'),
+#             'HOST': os.environ.get('DB_HOST', 'localhost'),
+#             'PORT': os.environ.get('DB_PORT', '5432'),
+#         }
+#     }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    # Default to PostgreSQL when DB_ENGINE is not provided
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('DB_NAME', 'default_db'),
-            'USER': os.environ.get('DB_USER', 'default_user'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'changeit'),
-            'HOST': os.environ.get('DB_HOST', 'localhost'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {

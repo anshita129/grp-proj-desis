@@ -1,13 +1,28 @@
 import os
+import re
+import time
 import traceback
+from decimal import Decimal
+
 from google import genai
-from .peer_analytics import get_peer_summary
+
+from trading.models import Wallet, Holding, TradeLog, Stock
+from .models import AIInsight
+
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def get_client():
     api_key = os.getenv("GEMINI_API_KEY")
     print("GEMINI API KEY PRESENT:", bool(api_key))
     return genai.Client(api_key=api_key)
+
+
+def get_model_name():
+    m = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+    print("USING GEMINI MODEL:", m)
+    return m
 
 
 def clean_text(x):
@@ -19,128 +34,393 @@ def clean_text(x):
     return x.strip()
 
 
-def get_fallback_reply(context, user_message, reason="unknown"):
+def safe_float(x, d=0.0):
+    try:
+        if x is None:
+            return d
+        return float(x)
+    except (TypeError, ValueError):
+        return d
+
+
+def safe_str(x, d=""):
+    if x is None:
+        return d
+    return str(x)
+
+
+def is_greeting(msg):
+    m = (msg or "").lower().strip()
+    gs = {
+        "hi", "hello", "hey", "hii", "heyy", "yo",
+        "good morning", "good afternoon", "good evening"
+    }
+    return m in gs
+
+
+def load_static_context():
+    try:
+        path = os.path.join(BASE_DIR, "ai_engine", "app_context.txt")
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print("STATIC CONTEXT LOAD ERROR:", repr(e))
+        return ""
+
+
+def get_fallback_reply(user_message, reason="unknown"):
     print(f"USING FALLBACK: {reason}")
 
-    msg = user_message.lower().strip()
-    ml = context.get("ml_based", {})
-    risk = context.get("risk_profile", "Unknown")
-    trader = ml.get("trader_type") or "unavailable"
-    anomaly = ml.get("is_anomaly")
+    msg = (user_message or "").lower().strip()
 
-    peer = context.get("peer_data", {})
-    us = peer.get("user_stats", {})
-    ps = peer.get("peer_summary", {})
-    tips = peer.get("peer_generated_tips", [])
+    if is_greeting(msg):
+        return "Hi! How can I help you today?"
 
-    if msg in ["hi", "hello", "hey"]:
-        return "Hi! Ask me about your trading profile, peer comparison, or how to improve."
+    app_keys = [
+        "wallet", "holding", "portfolio", "trade", "stock", "stocks",
+        "risk", "order", "buy", "sell", "market", "limit",
+        "simulation", "quiz", "badge", "learning", "module"
+    ]
 
-    if "risk" in msg:
-        return f"Your current risk profile is {risk}."
+    if any(k in msg for k in app_keys):
+        return "Sorry, I could not generate the full analysis right now. Please try again in a short while."
 
-    if "trader" in msg:
-        return f"Your trader type is currently {trader}."
+    return "Sorry, I could not generate a response right now. Please try again."
 
-    if "anomaly" in msg:
-        if anomaly is True:
-            return "An unusual trading pattern was detected recently."
-        if anomaly is False:
-            return "No anomaly is currently detected in your trading behavior."
-        return "Anomaly analysis is currently unavailable."
 
-    if "improve" in msg or "better" in msg or "suggest" in msg:
-        ans = []
-        if us and ps:
-            ans.append("Comparison with peers:")
-            ans.append(
-                f"- You have {us.get('total_trades', 0)} trades, while peer average is {ps.get('avg_total_trades', 0)}."
+def get_wallet_text(user):
+    try:
+        wallet = Wallet.objects.filter(student=user).first()
+        if not wallet:
+            return "No wallet found."
+        return f"Wallet balance: {round(safe_float(wallet.balance), 2)} {safe_str(getattr(wallet, 'currency', 'INR'), 'INR')}"
+    except Exception as e:
+        print("WALLET READ ERROR:", repr(e))
+        return "Wallet data unavailable."
+
+
+def get_holdings_text(user, limit=15):
+    try:
+        qs = (
+            Holding.objects
+            .filter(student=user)
+            .select_related("stock")
+            .order_by("-quantity")[:limit]
+        )
+
+        if not qs.exists():
+            return "No holdings found."
+
+        lines = []
+        total_cost = 0.0
+        total_current = 0.0
+
+        for h in qs:
+            sym = safe_str(getattr(h.stock, "symbol", "Unknown"))
+            qty = safe_float(getattr(h, "quantity", 0))
+            avg_buy = safe_float(getattr(h, "avg_buy_price", 0))
+            cur = safe_float(getattr(h.stock, "current_price", 0))
+            invested = qty * avg_buy
+            current = qty * cur
+            pnl = current - invested
+
+            total_cost += invested
+            total_current += current
+
+            lines.append(
+                f"{sym}: qty={qty}, avg_buy={round(avg_buy,2)}, current_price={round(cur,2)}, current_value={round(current,2)}, pnl={round(pnl,2)}"
             )
-            ans.append(
-                f"- Your portfolio diversity is {us.get('portfolio_diversity', 0)}, while peer average is {ps.get('avg_portfolio_diversity', 0)}."
-            )
-            ans.append("")
-            ans.append("How to improve:")
-        for t in tips[:3]:
-            ans.append(f"- {t}")
-        if ans:
-            return "\n".join(ans)
-        return "Try using smaller trade sizes, maintaining diversification, and avoiding unnecessary trades."
 
-    return "I can explain your profile, anomaly status, peer comparison, and improvement suggestions."
+        out = [
+            f"Holdings count: {qs.count()}",
+            f"Total invested amount: {round(total_cost, 2)}",
+            f"Total current holding value: {round(total_current, 2)}",
+            "Holdings detail:"
+        ]
+        out.extend(lines)
+        return "\n".join(out)
+
+    except Exception as e:
+        print("HOLDINGS READ ERROR:", repr(e))
+        return "Holdings data unavailable."
+
+
+def get_recent_trades_text(user, limit=10):
+    try:
+        qs = TradeLog.objects.filter(student=user).order_by("-executed_at")[:limit]
+
+        if not qs.exists():
+            return "No recent trades found."
+
+        lines = []
+        buy_ct = 0
+        sell_ct = 0
+        total_buy_value = 0.0
+        total_sell_value = 0.0
+
+        for t in qs:
+            sym = safe_str(getattr(t, "stock_symbol", "Unknown"))
+            typ = safe_str(getattr(t, "order_type", "Unknown"))
+            qty = safe_float(getattr(t, "quantity", 0))
+            price = safe_float(getattr(t, "price", 0))
+            total_value = safe_float(getattr(t, "total_value", 0))
+            wb = safe_float(getattr(t, "wallet_balance_before", 0))
+            wa = safe_float(getattr(t, "wallet_balance_after", 0))
+            tm = getattr(t, "executed_at", None)
+
+            if typ.upper() == "BUY":
+                buy_ct += 1
+                total_buy_value += total_value
+            elif typ.upper() == "SELL":
+                sell_ct += 1
+                total_sell_value += total_value
+
+            lines.append(
+                f"{typ} {qty} of {sym} at {round(price,2)} for value {round(total_value,2)}; wallet before={round(wb,2)}, wallet after={round(wa,2)}, time={tm}"
+            )
+
+        out = [
+            f"Recent trade count: {qs.count()}",
+            f"Recent buys: {buy_ct}",
+            f"Recent sells: {sell_ct}",
+            f"Recent buy value: {round(total_buy_value,2)}",
+            f"Recent sell value: {round(total_sell_value,2)}",
+            "Recent trade detail:"
+        ]
+        out.extend(lines)
+        return "\n".join(out)
+
+    except Exception as e:
+        print("TRADES READ ERROR:", repr(e))
+        return "Trade history unavailable."
+
+
+def get_latest_ai_insight_text(user):
+    try:
+        x = AIInsight.objects.filter(user=user).order_by("-created_at").first()
+        if not x:
+            return "No previous AI insight found."
+
+        return "\n".join([
+            "Latest saved AI insight:",
+            f"Risk profile: {safe_str(getattr(x, 'risk_profile', ''))}",
+            f"Trader type: {safe_str(getattr(x, 'trader_type', ''))}",
+            f"Anomaly detected: {safe_str(getattr(x, 'anomaly_detected', False))}",
+            f"Anomaly score: {safe_float(getattr(x, 'anomaly_score', 0))}",
+            f"Summary: {safe_str(getattr(x, 'summary', ''))}",
+        ])
+    except Exception as e:
+        print("AI INSIGHT READ ERROR:", repr(e))
+        return "AI insight data unavailable."
+
+
+def get_available_stocks_text(limit=200):
+    try:
+        qs = Stock.objects.all().order_by("symbol")[:limit]
+        if not qs.exists():
+            return "No stocks are currently available on the platform."
+
+        arr = []
+        for s in qs:
+            sym = safe_str(getattr(s, "symbol", "Unknown"))
+            name = safe_str(getattr(s, "company_name", ""))
+            sector = safe_str(getattr(s, "sector", ""))
+            price = safe_float(getattr(s, "current_price", 0))
+
+            line = sym
+            if name:
+                line += f" - {name}"
+            if sector:
+                line += f" - sector: {sector}"
+            line += f" - current price: {round(price,2)}"
+            arr.append(line)
+
+        return "Stocks available on the app:\n" + "\n".join(arr)
+
+    except Exception as e:
+        print("STOCK LIST READ ERROR:", repr(e))
+        return "Stock universe unavailable."
+
+
+def get_rule_based_text(rule_based):
+    if not rule_based:
+        return "No rule-based analysis found."
+
+    parts = ["Rule-based analysis:"]
+    parts.append(f"Trade count last 7 days: {rule_based.get('trade_count_last_7_days', 'N/A')}")
+    parts.append(f"Wallet balance: {rule_based.get('wallet_balance', 'N/A')}")
+    parts.append(f"Portfolio concentration: {rule_based.get('portfolio_concentration', 'N/A')}")
+    parts.append(f"Risk profile: {rule_based.get('risk_profile', 'N/A')}")
+
+    tips = rule_based.get("tips", [])
+    if tips:
+        parts.append("Rule-based tips:")
+        for t in tips:
+            parts.append(f"- {t}")
+
+    return "\n".join(parts)
+
+
+def get_ml_based_text(ml_based):
+    if not ml_based:
+        return "No ML analysis found."
+
+    parts = ["ML-based analysis:"]
+    parts.append(f"ML available: {ml_based.get('ml_available', False)}")
+    parts.append(f"Trader type: {ml_based.get('trader_type', 'N/A')}")
+    parts.append(f"Anomaly detected: {ml_based.get('is_anomaly', False)}")
+    parts.append(f"Anomaly score: {ml_based.get('anomaly_score', 'N/A')}")
+    return "\n".join(parts)
+
+
+def get_final_tips_text(final_tips):
+    if not final_tips:
+        return "No final tips found."
+
+    parts = ["Final combined tips:"]
+    for t in final_tips:
+        parts.append(f"- {t}")
+    return "\n".join(parts)
+
+
+
+    
+
+
+def build_user_context(context):
+    user = context.get("user")
+    username = safe_str(context.get("username", ""))
+
+    parts = []
+
+    if username:
+        parts.append(f"Username: {username}")
+
+
+    if user is not None:
+        parts.append(get_wallet_text(user))
+        parts.append(get_holdings_text(user))
+        parts.append(get_recent_trades_text(user))
+        parts.append(get_latest_ai_insight_text(user))
+
+    return "\n\n".join(parts)
+
+
+def is_app_related_question(msg):
+    m = (msg or "").lower()
+
+    keys = [
+        "app", "platform", "feature", "function", "available stock", "available stocks",
+        "stock", "stocks", "buy", "sell", "order", "wallet", "holding", "holdings",
+        "portfolio", "trade", "trading", "risk", "anomaly", "trader type",
+        "quiz", "badge", "reward", "learning", "module", "lesson",
+        "simulation", "scenario", "market data", "limit order", "pending order",
+        "history", "candlestick", "price chart"
+    ]
+
+    return any(k in m for k in keys)
+
+
+def needs_stock_context(msg):
+    m = (msg or "").lower()
+    keys = [
+        "stock", "stocks", "buy", "sell", "available", "trade", "trading",
+        "sector", "bank", "it", "tech", "pharma", "energy", "cement",
+        "finance", "auto"
+    ]
+    return any(k in m for k in keys)
+
+
+def call_gemini(client, contents, max_retries=2):
+    last_err = None
+
+    for i in range(max_retries + 1):
+        try:
+            return client.models.generate_content(
+                model=get_model_name(),
+                contents=contents,
+            )
+        except Exception as e:
+            last_err = e
+            s = str(e)
+            print("GEMINI CALL ERROR:", repr(e))
+
+            if "429" in s or "RESOURCE_EXHAUSTED" in s:
+                wait_s = 10 * (i + 1)
+                print(f"Rate limit hit. Sleeping for {wait_s}s")
+                time.sleep(wait_s)
+                continue
+
+            raise e
+
+    raise last_err
 
 
 def get_chatbot_reply(context):
-    username = context.get("username", "user")
-    risk_profile = context.get("risk_profile", "Unknown")
-    final_tips = context.get("final_tips", [])
-    ml_based = context.get("ml_based", {})
-    user_message = context.get("user_message", "")
-    user = context.get("user")
+    user_message = safe_str(context.get("user_message", "")).strip()
 
-    trader_type = ml_based.get("trader_type", "Unavailable")
-    anomaly_detected = ml_based.get("is_anomaly", False)
+    if not user_message:
+        return "Please ask something."
 
-    peer_data = {}
-    if user is not None:
-        peer_data = get_peer_summary(
-            user=user,
-            risk_profile=risk_profile,
-            trader_type=trader_type,
-        )
+    if is_greeting(user_message):
+        return "Hi! How can I help you with trading or anything else today?"
 
-    context["peer_data"] = peer_data
+    static_context = load_static_context()
+    user_context = build_user_context(context)
 
-    user_stats = peer_data.get("user_stats", {})
-    peer_summary = peer_data.get("peer_summary", {})
-    comparison_points = peer_data.get("comparison_points", [])
-    peer_generated_tips = peer_data.get("peer_generated_tips", [])
-    peer_user_count = peer_summary.get("peer_user_count", 0)
+    app_related = is_app_related_question(user_message)
+    stock_related = needs_stock_context(user_message)
 
-    merged_tips = list(final_tips or [])
-    for t in peer_generated_tips:
-        if t not in merged_tips:
-            merged_tips.append(t)
-
-    system_prompt = f"""
-You are an AI trading assistant for a student project.
+    system_prompt = """
+You are an AI assistant inside a financial learning and trading platform.
 
 Rules:
 - Reply in simple English.
 - Use plain text only.
 - Do not use markdown.
-- Be clear and useful.
-- Answer what is being asked.
+- Be clear, direct, and useful.
+- Answer only what is being asked.
+- Keep the answer moderately detailed unless the user asks for a shorter reply.
 
-- If the user message is a greeting, respond briefly and do not give analysis.
-- Keep the answer moderately detailed.
-
-- Use only the provided data.
-- You can use facts from internet.
-- Do not mention any individual other user.
-- Use peer data only in aggregated form.
-
-Available data:
-Username: {username}
-Risk profile: {risk_profile}
-Trader type: {trader_type}
-Anomaly detected: {anomaly_detected}
-Current user stats: {user_stats}
-Peer summary: {peer_summary}
-Comparison points: {comparison_points}
-Tips: {merged_tips[:4]}
-Peer users considered: {peer_user_count}
+Behavior rules:
+- If the question is about the app, trading, holdings, wallet, portfolio, orders, or available stocks, use the provided platform knowledge and user data.
+- If the question is general and not related to the app, answer it normally like a general assistant.
+- Do not invent user data, app features, stocks, values, or events.
+- If data is missing, clearly say so.
+- Do not promise profits or certainty.
+- When the user asks about available stocks or recommendations inside the app, use only the platform stock list.
+- If the user asks about a stock not available on the platform, clearly say it is not available.
+- When answering about the user's activity, use their real wallet, trades, and holdings to explain reasoning clearly.
 """.strip()
 
     try:
         client = get_client()
 
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=[
+        blocks = []
+
+        if app_related:
+            if static_context:
+                blocks.append("Platform knowledge:\n" + static_context)
+
+            if stock_related:
+                blocks.append(get_available_stocks_text())
+
+            if user_context:
+                blocks.append("User data:\n" + user_context)
+
+            blocks.append("User question:\n" + user_message)
+        else:
+            blocks.append("General user question:\n" + user_message)
+
+        full_input = "\n\n".join(blocks)
+
+        response = call_gemini(
+            client,
+            [
                 system_prompt,
-                f"User question: {user_message}"
+                full_input
             ],
+            max_retries=2
         )
 
         print("RAW GEMINI RESPONSE:", response)
@@ -151,9 +431,9 @@ Peer users considered: {peer_user_count}
             print("LLM SUCCESS: Gemini returned text")
             return text
 
-        return get_fallback_reply(context, user_message, "empty Gemini text")
+        return get_fallback_reply(user_message, "empty Gemini text")
 
     except Exception as e:
         print("GEMINI ERROR:", repr(e))
         traceback.print_exc()
-        return get_fallback_reply(context, user_message, f"exception: {repr(e)}")
+        return get_fallback_reply(user_message, f"exception: {repr(e)}")
