@@ -7,7 +7,8 @@ from django.utils import timezone as django_timezone
 from decimal import Decimal, InvalidOperation
 from django.core.cache import cache
 from django.utils.dateparse import parse_datetime
-TICK_SIZE = Decimal('0.05')
+
+ROUNDING_SIZE = Decimal('0.05')
 
 from .services import (
     execute_buy, execute_sell, fetch_candles,
@@ -152,9 +153,9 @@ class TradeHistoryView(APIView):
                 "symbol":        o.stock.symbol,
                 "type":          o.order_type,
                 "quantity":      o.quantity,
-                "price":         ((Decimal(log.price if log else o.price_at_order)) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE,
-                "total_value":   ((Decimal(log.total_value if log else o.price_at_order * o.quantity))/TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE,
-                "limit_price":   ((Decimal(limit_prices[str(o.id)])) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE if str(o.id) in limit_prices else None,
+                "price":         ((Decimal(log.price if log else o.price_at_order)) /ROUNDING_SIZE).quantize(Decimal('0.01')) * ROUNDING_SIZE,
+                "total_value":   ((Decimal(log.total_value if log else o.price_at_order * o.quantity))/ROUNDING_SIZE).quantize(Decimal('0.01')) * ROUNDING_SIZE,
+                "limit_price":   ((Decimal(limit_prices[str(o.id)])) /ROUNDING_SIZE).quantize(Decimal('0.01')) * ROUNDING_SIZE if str(o.id) in limit_prices else None,
                 "balance_after": Decimal(log.wallet_balance_after) if log else None,
                 "time":          o.created_at.isoformat(),
                 "time":        o.created_at.isoformat(),
@@ -177,7 +178,7 @@ class PendingOrdersView(APIView):
 
         # pre-fetch limit prices for all these orders
         limit_map = {
-            str(lo.order.id): {"limit_price": ((Decimal(lo.limit_price)) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE, "expires_at": lo.expires_at.isoformat() if lo.expires_at else None}
+            str(lo.order.id): {"limit_price": ((Decimal(lo.limit_price)) /ROUNDING_SIZE).quantize(Decimal('0.01')) * ROUNDING_SIZE, "expires_at": lo.expires_at.isoformat() if lo.expires_at else None}
             for lo in LimitOrder.objects.filter(order__in=orders)
         }
 
@@ -187,7 +188,7 @@ class PendingOrdersView(APIView):
             "stock":          o.stock.symbol,
             "order_type":     o.order_type,
             "quantity":       o.quantity,
-            "price_at_order": ((Decimal(o.price_at_order)) /TICK_SIZE).quantize(Decimal('0.01')) * TICK_SIZE,
+            "price_at_order": ((Decimal(o.price_at_order)) /ROUNDING_SIZE).quantize(Decimal('0.01')) * ROUNDING_SIZE,
             "limit_price":    limit_map.get(str(o.id), {}).get("limit_price"),
             "expires_at":     limit_map.get(str(o.id), {}).get("expires_at"),
             "created_at":     o.created_at.isoformat(),
