@@ -685,7 +685,7 @@ export default function TradingPage() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                <span className="text-xs font-bold text-white font-mono">V</span>
+                <span className="text-xs font-bold text-white font-mono">E</span>
               </div>
               <span className="text-sm font-bold tracking-wide text-white font-mono">TRADING</span>
             </div>
