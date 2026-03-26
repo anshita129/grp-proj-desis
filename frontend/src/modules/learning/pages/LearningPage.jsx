@@ -9,7 +9,11 @@ function LearningPage() {
 
   useEffect(() => {
     getModules()
-      .then(res => setModules(res.data))
+      .then(res => {
+        const order = { 'Beginner': 1, 'Intermediate': 2, 'Advanced': 3 };
+        const sorted = [...res.data].sort((a, b) => (order[a.difficulty] || 99) - (order[b.difficulty] || 99));
+        setModules(sorted);
+      })
       .catch(err => setError(err.response?.data?.detail || 'Failed to load modules.'))
       .finally(() => setLoading(false));
   }, []);
