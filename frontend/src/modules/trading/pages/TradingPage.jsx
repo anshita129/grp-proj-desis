@@ -250,8 +250,18 @@ function OrderForm({ stocks, wallet, holdings, selectedSymbol, onSuccess }) {
                 {side === "BUY" ? "triggers when price ≤ this" : "triggers when price ≥ this"}
               </span>
             </label>
-            <input type="number" min="0.01" step="0.01" value={limitPrice} placeholder="0.00"
-              onChange={e => { setLimitPrice(e.target.value); setResult(null); setConfirming(false); }}
+            <input
+              type="number"
+              min="0.01"
+              step="0.05"
+              value={limitPrice === "" ? "" : limitPrice}
+              placeholder="0.00"
+              onChange={e => {
+                const val = e.target.value;
+                setLimitPrice(val);
+                setResult(null);
+                setConfirming(false);
+              }}
               className={accentInputCls}
             />
           </div>
