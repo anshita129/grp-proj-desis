@@ -356,11 +356,9 @@ function OrderForm({ stocks, wallet, holdings, selectedSymbol, onSuccess }) {
 
 // --------------------------------------------------------------
 // COMPONENT 3: Stock Table - Full-page searchable, filterable table of all stocks.
-function StockTable({ stocks, onSelect }) {
+function StockTable({ stocks, onSelect, onOpenChart }) {
   const [search, setSearch] = useState("");     // text filter
   const [sector, setSector] = useState("ALL");  // sector dropdown filter
-  const [selectedChart, setSelectedChart] = useState(null);  // graph
-  const [chartPos, setChartPos] = useState({ x: 0, y: 0 });
 
   // Build the unique sector list from all stocks, prepend "ALL"
   const sectors = ["ALL", ...new Set(stocks.map(s => s.sector))];
@@ -370,11 +368,7 @@ function StockTable({ stocks, onSelect }) {
     (sector === "ALL" || s.sector === sector) &&
     (s.symbol.includes(search.toUpperCase()) || s.company.toLowerCase().includes(search.toLowerCase()))
   );
-  useEffect(() => {
-    const handleScroll = () => setSelectedChart(null);
-    window.addEventListener("scroll", handleScroll);  // ← remove the `true`
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+
 
   return (
     <div className="rounded-2xl bg-slate-800/50 border border-slate-700/50 backdrop-blur-sm overflow-hidden">
@@ -453,11 +447,7 @@ function StockTable({ stocks, onSelect }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setChartPos({
-                          x: e.clientX, // Position relative to the visible window
-                          y: e.clientY,
-                        });
-                        setSelectedChart(s.symbol);
+                        if (onOpenChart) onOpenChart(s.symbol);
                       }}
                       className="px-3 py-1 text-xs font-mono tracking-widest text-indigo-400 border border-indigo-500/30 rounded hover:bg-indigo-500/10 transition-colors"
                     >CHART</button>
@@ -470,38 +460,6 @@ function StockTable({ stocks, onSelect }) {
         </table>
       </div>
 
-      {/* Chart modal */}
-      {selectedChart && (
-        <>
-          {/* Full screen invisible backdrop — catches outside clicks */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setSelectedChart(null)}
-          />
-
-          {/* Chart popup */}
-          <div
-            className="fixed z-50 bg-slate-900 rounded-xl p-4 border border-slate-700 shadow-2xl"
-            style={{
-              left: `${Math.min(chartPos.x - 1250, window.innerWidth - 870)}px`,
-              top: `${Math.min(chartPos.y - 150, window.innerHeight - 540)}px`,
-              width: "850px",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-sm font-mono font-bold text-indigo-400">
-                {selectedChart} — Price Chart
-              </h2>
-              <button
-                onClick={() => setSelectedChart(null)}
-                className="text-slate-500 hover:text-white transition-colors"
-              >✕</button>
-            </div>
-            <CandleChart symbol={selectedChart} />
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -604,6 +562,7 @@ export default function TradingPage() {
   const [loading, setLoading] = useState(true);                     // initial data loading flag
   const [selectedSymbol, setSelectedSymbol] = useState("");         // stock pre-selected for OrderForm
   const [holdings, setHoldings] = useState([]);                     // holdings of the user
+  const [selectedChart, setSelectedChart] = useState(null);         // currently open chart popup
 
   // Initial data load - Runs once on mount, fetch all parallely 
   useEffect(() => {
@@ -770,7 +729,7 @@ export default function TradingPage() {
         )}
 
         {/* TAB: MARKET */}
-        {tab === "market" && <StockTable stocks={stocks} onSelect={handleSelectStock} />}
+        {tab === "market" && <StockTable stocks={stocks} onSelect={handleSelectStock} onOpenChart={setSelectedChart} />}
 
         {/* TAB: HISTORY */}
         {tab === "history" && <TradeHistory history={history} />}
@@ -851,6 +810,32 @@ export default function TradingPage() {
           </div>
         )}
       </main>
+
+      {/* GLOBALLY POSITIONED MODALS */}
+      {selectedChart && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-slate-950/20 backdrop-blur-sm"
+            onClick={() => setSelectedChart(null)}
+          />
+          <div
+            className="fixed z-50 bg-slate-900 rounded-xl p-4 border border-slate-700 shadow-2xl top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{ width: "850px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-sm font-mono font-bold text-indigo-400">
+                {selectedChart} — Price Chart
+              </h2>
+              <button
+                onClick={() => setSelectedChart(null)}
+                className="text-slate-500 hover:text-white transition-colors"
+              >✕</button>
+            </div>
+            <CandleChart symbol={selectedChart} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
