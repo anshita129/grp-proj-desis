@@ -1,8 +1,6 @@
 import os
-import re
 import time
 import traceback
-from decimal import Decimal
 
 from google import genai
 
@@ -76,16 +74,7 @@ def get_fallback_reply(user_message, reason="unknown"):
     if is_greeting(msg):
         return "Hi! How can I help you today?"
 
-    app_keys = [
-        "wallet", "holding", "portfolio", "trade", "stock", "stocks",
-        "risk", "order", "buy", "sell", "market", "limit",
-        "simulation", "quiz", "badge", "learning", "module"
-    ]
-
-    if any(k in msg for k in app_keys):
-        return "Sorry, I could not generate the full analysis right now. Please try again in a short while."
-
-    return "Sorry, I could not generate a response right now. Please try again."
+    return "Sorry, I could not generate a response right now. Please try again in a short while."
 
 
 def get_wallet_text(user):
@@ -283,10 +272,6 @@ def get_final_tips_text(final_tips):
     return "\n".join(parts)
 
 
-
-    
-
-
 def build_user_context(context):
     user = context.get("user")
     username = safe_str(context.get("username", ""))
@@ -296,39 +281,26 @@ def build_user_context(context):
     if username:
         parts.append(f"Username: {username}")
 
-
     if user is not None:
         parts.append(get_wallet_text(user))
         parts.append(get_holdings_text(user))
         parts.append(get_recent_trades_text(user))
         parts.append(get_latest_ai_insight_text(user))
 
+    rule_based = context.get("rule_based")
+    ml_based = context.get("ml_based")
+    final_tips = context.get("final_tips")
+
+    if rule_based:
+        parts.append(get_rule_based_text(rule_based))
+
+    if ml_based:
+        parts.append(get_ml_based_text(ml_based))
+
+    if final_tips:
+        parts.append(get_final_tips_text(final_tips))
+
     return "\n\n".join(parts)
-
-
-def is_app_related_question(msg):
-    m = (msg or "").lower()
-
-    keys = [
-        "app", "platform", "feature", "function", "available stock", "available stocks",
-        "stock", "stocks", "buy", "sell", "order", "wallet", "holding", "holdings",
-        "portfolio", "trade", "trading", "risk", "anomaly", "trader type",
-        "quiz", "badge", "reward", "learning", "module", "lesson",
-        "simulation", "scenario", "market data", "limit order", "pending order",
-        "history", "candlestick", "price chart"
-    ]
-
-    return any(k in m for k in keys)
-
-
-def needs_stock_context(msg):
-    m = (msg or "").lower()
-    keys = [
-        "stock", "stocks", "buy", "sell", "available", "trade", "trading",
-        "sector", "bank", "it", "tech", "pharma", "energy", "cement",
-        "finance", "auto"
-    ]
-    return any(k in m for k in keys)
 
 
 def call_gemini(client, contents, max_retries=2):
@@ -367,30 +339,33 @@ def get_chatbot_reply(context):
 
     static_context = load_static_context()
     user_context = build_user_context(context)
-
-    app_related = is_app_related_question(user_message)
-    stock_related = needs_stock_context(user_message)
+    available_stocks_text = get_available_stocks_text()
 
     system_prompt = """
-You are an AI assistant inside a financial learning and trading platform.
+You are an AI assistant inside a financial trading and learning platform.
 
-Rules:
-- Reply in simple English.
-- Use plain text only.
-- Do not use markdown.
-- Be clear, direct, and useful.
-- Answer only what is being asked.
-- Keep the answer moderately detailed unless the user asks for a shorter reply.
+You will receive:
+- Platform knowledge
+- User-specific platform data
+- Available platform stocks
+- The user's question
 
-Behavior rules:
-- If the question is about the app, trading, holdings, wallet, portfolio, orders, or available stocks, use the provided platform knowledge and user data.
-- If the question is general and not related to the app, answer it normally like a general assistant.
-- Do not invent user data, app features, stocks, values, or events.
-- If data is missing, clearly say so.
+Follow these rules carefully:
+- Answer only the user's actual question.
+- Use platform knowledge whenever relevant.
+- User-specific data is secondary context.
+- Use user-specific data only when the question is specifically about the user's own portfolio, wallet, holdings, trades, account activity, risk, or asks for a personal recommendation.
+- If the question is general, conceptual, educational, or about broad market or world scenarios, do not mention the user's personal data unless the user explicitly asks to relate the answer to their own situation.
+- Use the available platform stocks only when they are relevant to the question.
+- Never say you do not have access to the user data if it is provided below.
+- Never ask for wallet, holdings, or trade details if they are already provided below.
+- Do not invent facts, values, holdings, stocks, prices, or app features.
+- If some relevant detail is missing, briefly say what is missing.
 - Do not promise profits or certainty.
-- When the user asks about available stocks or recommendations inside the app, use only the platform stock list.
-- If the user asks about a stock not available on the platform, clearly say it is not available.
-- When answering about the user's activity, use their real wallet, trades, and holdings to explain reasoning clearly.
+- Keep the answer in simple English.
+- Use plain text only.
+- Be clear, direct, and useful.
+- Keep the answer moderately detailed unless the user asks for a shorter one.
 """.strip()
 
     try:
@@ -398,19 +373,22 @@ Behavior rules:
 
         blocks = []
 
-        if app_related:
-            if static_context:
-                blocks.append("Platform knowledge:\n" + static_context)
+        if static_context:
+            blocks.append("PLATFORM KNOWLEDGE:\n" + static_context)
 
-            if stock_related:
-                blocks.append(get_available_stocks_text())
+        if available_stocks_text:
+            blocks.append(
+                "AVAILABLE PLATFORM STOCKS:\n"
+                + available_stocks_text
+            )
 
-            if user_context:
-                blocks.append("User data:\n" + user_context)
+        if user_context:
+            blocks.append(
+                "USER-SPECIFIC PLATFORM DATA:\n"
+                + user_context
+            )
 
-            blocks.append("User question:\n" + user_message)
-        else:
-            blocks.append("General user question:\n" + user_message)
+        blocks.append("USER QUESTION:\n" + user_message)
 
         full_input = "\n\n".join(blocks)
 
