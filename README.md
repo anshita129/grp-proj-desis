@@ -142,24 +142,25 @@ To use the AI chatbot, you need a Gemini API key.
 
 ### Step 1: Get your API key
 
-1. Go to: https://aistudio.google.com/
+1. Go to: https://makersuite.google.com/app/apikey
 2. Sign in with your Google account
-3. Click on **"Get API key"**
-4. Create a new API key and copy it
+3. Click on **"Create API Key"**
+4. Copy the generated key
 
 ### Step 2: Create `.env` file
 
-Inside the `backend` folder, in`.env` file add the following variables :
+Inside the `backend` folder, create a file named `.env` and add:
 
 GEMINI_API_KEY=your_api_key_here
 GEMINI_MODEL=gemini-3-flash-preview
 
-Replace `your_api_key_here` with the key you generated.
+Replace `your_api_key_here` with your actual API key.
 
 ### Step 3: Run the backend
 
 python manage.py runserver
 
 If the API key is set correctly, the AI chatbot will start working.
+
 
 
