@@ -149,7 +149,7 @@ To use the AI chatbot, you need a Gemini API key.
 
 ### Step 2: Create `.env` file
 
-Inside the `backend` folder, create a file named `.env` and add:
+In the file named `.env` inside the backend folder add the following variables :
 
 GEMINI_API_KEY=your_api_key_here
 GEMINI_MODEL=gemini-3-flash-preview
