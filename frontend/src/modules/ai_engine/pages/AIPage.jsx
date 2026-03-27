@@ -19,7 +19,7 @@ function AIPage() {
   const defaultMessages = [
     {
       role: "assistant",
-      text: "Hi! 👋 I’m your trading assistant. Ask me about your trading pattern, peer comparison, anomaly status, or how to improve.",
+      text: "Hi! 👋 I’m your trading assistant.",
     },
   ];
 
@@ -38,7 +38,7 @@ function AIPage() {
   useEffect(() => {
     const fetchCSRF = async () => {
       try {
-        await fetch("http://localhost:8000/api/csrf/", {
+        await fetch("/api/ai/csrf/", {
           method: "GET",
           credentials: "include",
         });
@@ -49,7 +49,7 @@ function AIPage() {
 
     const fetchMe = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/users/me/", {
+        const res = await fetch("/api/users/me/", {
           method: "GET",
           credentials: "include",
         });
@@ -107,7 +107,7 @@ function AIPage() {
   const quickSuggestions = useMemo(() => {
     if (!latestAssistantReply) {
       return [
-        "Ask how your trading compares with peers.",
+        "Ask for a summary of your current portfolio.",
         "Ask how to improve your trade sizing.",
         "Ask whether any anomaly is detected.",
       ];
@@ -145,7 +145,7 @@ function AIPage() {
     if (!out.length) {
       return [
         "Ask for a short improvement plan.",
-        "Ask for peer comparison in simple words.",
+        "Ask what stocks are available on the app.",
         "Ask what your current trading style means.",
       ];
     }
@@ -171,7 +171,7 @@ function AIPage() {
         { role: "user", text: currentMessage },
         {
           role: "assistant",
-          text: "Hi! 😊 Ask me about your trading style, peer comparison, anomaly status, or suggestions to improve.",
+          text: "Hi! 😊 Ask me about your trading style,  wallet, holdings, recent trades, available stocks, portfolio decisions, or how to use the platform.",
         },
       ]);
       setChatInput("");
@@ -186,7 +186,7 @@ function AIPage() {
     try {
       const csrftoken = getCookie("csrftoken");
 
-      const res = await fetch("http://localhost:8000/api/ai/chat/", {
+      const res = await fetch("/api/ai/chat/", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -243,7 +243,7 @@ function AIPage() {
             Trading Assistant ✨
           </h1>
           <p className="text-slate-300 mt-2 max-w-3xl">
-            Ask about your trading behavior, peer comparison, anomaly detection, or suggestions to improve.
+            Ask about your trading behavior,  wallet, holdings, recent trades, available stocks, portfolio decisions, or how to use the platform.
           </p>
         </div>
 
@@ -331,35 +331,37 @@ function AIPage() {
           </div>
 
           <div className="space-y-8">
-            <div className="rounded-3xl border border-cyan-900/40 bg-gradient-to-br from-[#08133b] to-[#0b1748] p-6 shadow-xl shadow-cyan-950/10">
-              <h2 className="text-2xl font-semibold mb-4">How This Works 🧠</h2>
+            
 
-              <div className="space-y-4 text-slate-300 leading-7">
-                <div className="rounded-2xl bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border border-cyan-800/30 p-4">
-                  <p className="text-cyan-300 font-medium mb-1">Step 1 • Behavior Analysis</p>
-                  <p>
-                    Your trading activity and portfolio behavior are studied using rule-based logic and machine learning signals.
-                  </p>
-                </div>
+                <div className="rounded-3xl border border-cyan-900/40 bg-gradient-to-br from-[#08133b] to-[#0b1748] p-6 shadow-xl shadow-cyan-950/10">
+                  <h2 className="text-2xl font-semibold mb-4">How This Works 🧠</h2>
 
-                <div className="rounded-2xl bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-800/30 p-4">
-                  <p className="text-sky-300 font-medium mb-1">Step 2 • Peer Comparison</p>
-                  <p>
-                    Your patterns are compared with aggregated peer trends to understand how your activity differs from typical users.
-                  </p>
-                </div>
+                  <div className="space-y-4 text-slate-300 leading-7">
+                    <div className="rounded-2xl bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border border-cyan-800/30 p-4">
+                      <p className="text-cyan-300 font-medium mb-1">Step 1 • Reads Your Trading Behaviour</p>
+                      <p>
+                        The assistant reads your wallet, holdings, recent trades, and the stocks available on the platform.
+                      </p>
+                    </div>
 
-                <div className="rounded-2xl bg-gradient-to-r from-violet-900/20 to-indigo-900/20 border border-violet-800/30 p-4">
-                  <p className="text-violet-300 font-medium mb-1">Step 3 • Explanation</p>
-                  <p>
-                    The chatbot turns these signals into a clear explanation with short, useful suggestions.
-                  </p>
+                    <div className="rounded-2xl bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-800/30 p-4">
+                      <p className="text-sky-300 font-medium mb-1">Step 2 • Understands Context</p>
+                      <p>
+                        It uses your actual activity along with platform information to answer questions about your portfolio, trading actions, and app features.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-gradient-to-r from-violet-900/20 to-indigo-900/20 border border-violet-800/30 p-4">
+                      <p className="text-violet-300 font-medium mb-1">Step 3 • Gives Clear Responses</p>
+                      <p>
+                        The chatbot explains things in simple language and stays within the stocks and features available in this app when relevant.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
             <div className="rounded-3xl border border-pink-900/30 bg-gradient-to-br from-[#08133b] to-[#15123f] p-6 shadow-xl shadow-pink-950/10">
-              <h2 className="text-2xl font-semibold mb-1">Quick Suggestions 🌟</h2>
+              <h2 className="text-2xl font-semibold mb-1">Quick 🌟</h2>
               <p className="text-slate-400 text-sm mb-4">
                 Based on your latest response
               </p>
