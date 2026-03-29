@@ -134,3 +134,33 @@ DEFAULT_FROM_EMAIL="EduTrade <your_email@gmail.com>"
 ```
 
 Then restart the Django server.
+
+---
+## AI Engine Setup
+
+To use the AI chatbot, you need a Gemini API key.
+
+### Step 1: Get your API key
+
+1. Go to: https://makersuite.google.com/app/apikey
+2. Sign in with your Google account
+3. Click on **"Create API Key"**
+4. Copy the generated key
+
+### Step 2: Add to the `.env` file
+
+In the file named `.env` inside the backend folder add the following variables :
+
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL=gemini-3-flash-preview
+
+Replace `your_api_key_here` with your actual API key.
+
+### Step 3: Run the backend
+
+python manage.py runserver
+
+If the API key is set correctly, the AI chatbot will start working.
+
+
+
