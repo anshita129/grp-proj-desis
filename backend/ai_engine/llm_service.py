@@ -6,7 +6,7 @@ from google import genai
 
 from trading.models import Wallet, Holding, TradeLog, Stock
 from .models import AIInsight
-
+from learning.models import LessonProgress, QuizAttempt, UserBadge
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -76,6 +76,113 @@ def get_fallback_reply(user_message, reason="unknown"):
 
     return "Sorry, I could not generate a response right now. Please try again in a short while."
 
+def get_learning_text(user, lesson_limit=10, quiz_limit=5, badge_limit=5):
+    try:
+        lesson_qs = (
+            LessonProgress.objects
+            .filter(user=user)
+            .select_related("lesson", "lesson__module")
+            .order_by("-completed_at")[:lesson_limit]
+        )
+
+        quiz_qs = (
+            QuizAttempt.objects
+            .filter(user=user)
+            .select_related("quiz", "quiz__module")
+            .order_by("-attempted_at")[:quiz_limit]
+        )
+
+        badge_qs = (
+            UserBadge.objects
+            .filter(user=user)
+            .select_related("badge")
+            .order_by("-awarded_at")[:badge_limit]
+        )
+
+        total_completed_lessons = LessonProgress.objects.filter(user=user).count()
+        total_quiz_attempts = QuizAttempt.objects.filter(user=user).count()
+        passed_quizzes = QuizAttempt.objects.filter(user=user, passed=True).count()
+
+        parts = ["Learning data:"]
+
+        if total_completed_lessons == 0 and total_quiz_attempts == 0 and not badge_qs.exists():
+            return "Learning data: No learning progress found."
+
+        parts.append(f"Completed lessons: {total_completed_lessons}")
+        parts.append(f"Quiz attempts: {total_quiz_attempts}")
+        parts.append(f"Passed quizzes: {passed_quizzes}")
+
+        if quiz_qs.exists():
+            avg_score_raw = 0.0
+            avg_pct_raw = 0.0
+            cnt = 0
+
+            parts.append("Recent quiz attempts:")
+            for q in quiz_qs:
+                module_title = q.quiz.module.title if q.quiz and q.quiz.module else "Unknown module"
+                quiz_title = q.quiz.title if q.quiz else "Unknown quiz"
+                score = safe_float(q.score)
+                total = max(1, safe_float(q.total_questions, 1))
+                pct = round((score / total) * 100.0, 2)
+
+                avg_score_raw += score
+                avg_pct_raw += pct
+                cnt += 1
+
+                status = "Passed" if q.passed else "Failed"
+                parts.append(
+                    f"- Module: {module_title}, Quiz: {quiz_title}, Score: {int(score)}/{int(total)}, Percentage: {pct}%, Result: {status}"
+                )
+
+            parts.append(f"Average recent quiz percentage: {round(avg_pct_raw / cnt, 2)}%")
+
+        if lesson_qs.exists():
+            parts.append("Recently completed lessons:")
+            seen_modules = set()
+
+            for lp in lesson_qs:
+                lesson_title = lp.lesson.title if lp.lesson else "Unknown lesson"
+                module_title = lp.lesson.module.title if lp.lesson and lp.lesson.module else "Unknown module"
+                difficulty = lp.lesson.module.difficulty if lp.lesson and lp.lesson.module else "Unknown"
+                seen_modules.add((module_title, difficulty))
+
+                parts.append(
+                    f"- Module: {module_title}, Difficulty: {difficulty}, Lesson: {lesson_title}"
+                )
+
+            if seen_modules:
+                parts.append("Modules covered recently:")
+                for module_title, difficulty in list(seen_modules)[:5]:
+                    parts.append(f"- {module_title} ({difficulty})")
+
+        if badge_qs.exists():
+            parts.append("Earned badges:")
+            for ub in badge_qs:
+                badge_name = ub.badge.name if ub.badge else "Unknown badge"
+                badge_desc = ub.badge.description if ub.badge else ""
+                reward = ub.badge.reward_amount if ub.badge else 0
+                parts.append(
+                    f"- Badge: {badge_name}, Reward: {reward}, Description: {badge_desc}"
+                )
+
+        weak_modules = []
+        for q in quiz_qs:
+            total = max(1, safe_float(q.total_questions, 1))
+            pct = (safe_float(q.score) / total) * 100.0
+            if pct < 50:
+                module_title = q.quiz.module.title if q.quiz and q.quiz.module else "Unknown module"
+                weak_modules.append(module_title)
+
+        if weak_modules:
+            parts.append("Possible weak areas based on recent quiz scores:")
+            for x in list(dict.fromkeys(weak_modules))[:5]:
+                parts.append(f"- {x}")
+
+        return "\n".join(parts)
+
+    except Exception as e:
+        print("LEARNING DATA READ ERROR:", repr(e))
+        return "Learning data unavailable."
 
 def get_wallet_text(user):
     try:
@@ -285,6 +392,7 @@ def build_user_context(context):
         parts.append(get_wallet_text(user))
         parts.append(get_holdings_text(user))
         parts.append(get_recent_trades_text(user))
+        parts.append(get_learning_text(user))
         parts.append(get_latest_ai_insight_text(user))
 
     rule_based = context.get("rule_based")
@@ -354,18 +462,15 @@ Follow these rules carefully:
 - Answer only the user's actual question.
 - Use platform knowledge whenever relevant.
 - User-specific data is secondary context.
-- Use user-specific data only when the question is specifically about the user's own portfolio, wallet, holdings, trades, account activity, risk, or asks for a personal recommendation.
-- If the question is general, conceptual, educational, or about broad market or world scenarios, do not mention the user's personal data unless the user explicitly asks to relate the answer to their own situation.
-- Use the available platform stocks only when they are relevant to the question.
-- Never say you do not have access to the user data if it is provided below.
-- Never ask for wallet, holdings, or trade details if they are already provided below.
-- Do not invent facts, values, holdings, stocks, prices, or app features.
-- If some relevant detail is missing, briefly say what is missing.
+- Use user-specific data only when the question is specifically about the user's own portfolio, wallet, holdings, trades, account activity, learning progress, quiz performance, badges, risk, or asks for a personal recommendation.
+- If learning progress is available, use it to adjust the explanation level and recommend relevant concepts or lessons when helpful.
+- If the question is general or conceptual, do not unnecessarily mention private user data.
+- Never invent facts, scores, holdings, lesson completion, or platform features.
+- If some relevant detail is missing, briefly say so.
 - Do not promise profits or certainty.
 - Keep the answer in simple English.
 - Use plain text only.
 - Be clear, direct, and useful.
-- Keep the answer moderately detailed unless the user asks for a shorter one.
 """.strip()
 
     try:

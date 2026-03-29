@@ -132,9 +132,7 @@ Users can earn badges:
 - All Modules Complete
 - Dedicated Learner
 
-Rewards:
-- badges may give money
-- rewards are added to trading wallet
+
 
 --------------------------------------------------
 
@@ -162,7 +160,6 @@ Users can:
 - view risk and behavior insights
 - simulate trading strategies
 - learn through modules
-- earn rewards
 - interact with AI chatbot
 
 --------------------------------------------------
@@ -184,7 +181,7 @@ AI RESPONSE RULES:
   - about performance → use portfolio analytics
   - about risk → use risk score + flags
   - about behavior → use behavior analytics
-  - about learning → explain modules and badges
+  - about learning → explain modules 
   - about simulation → explain simulator features
 
 - Do not invent data
