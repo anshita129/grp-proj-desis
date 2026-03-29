@@ -159,7 +159,6 @@ Replace `your_api_key_here` with your actual API key.
 
 ### Step 3: Run the backend
 
-python manage.py runserver
 
 If the API key is set correctly, the AI chatbot will start working.
 
