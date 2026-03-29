@@ -64,6 +64,7 @@ The backend API and Admin Panel will now be running at [http://localhost:8000](h
 To populate the Learning Module with modules, lessons, quizzes, and badges:
 ```bash
 python manage.py seed_learning
+Python manage.py enrich_lessons
 ```
 
 To populate with stocks
