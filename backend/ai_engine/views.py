@@ -1,12 +1,19 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.authentication import SessionAuthentication
 
 from .llm_service import get_chatbot_reply
 from .models import AIInsight
 
 
+class CsrfExemptSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        return
+
+
 @api_view(["POST"])
+@authentication_classes([CsrfExemptSessionAuthentication])
 @permission_classes([IsAuthenticated])
 def ai_chat(request):
     user = request.user
@@ -15,7 +22,6 @@ def ai_chat(request):
     if not user_message:
         return Response({"reply": "Please enter a message."}, status=400)
 
-    # 🔥 Minimal context (NO ML, NO RULES)
     context = {
         "user_message": user_message,
         "user": user,
@@ -24,10 +30,8 @@ def ai_chat(request):
 
     reply = get_chatbot_reply(context)
 
-    # Optional: save chat summary
     AIInsight.objects.create(
         user=user,
-        
         summary=reply,
     )
 
@@ -36,7 +40,6 @@ def ai_chat(request):
     })
 
 
-# Optional: history API (cleaned)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def ai_history(request):

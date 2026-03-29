@@ -7,9 +7,11 @@ from google import genai
 from trading.models import Wallet, Holding, TradeLog, Stock
 from .models import AIInsight
 from learning.models import LessonProgress, QuizAttempt, UserBadge
+from dotenv import load_dotenv
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 def get_client():
     api_key = os.getenv("GEMINI_API_KEY")
