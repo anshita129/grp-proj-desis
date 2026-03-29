@@ -170,13 +170,19 @@ If the chatbot is not responding properly, you can switch to a more stable model
 🔧 How to change the model
 1. Open the .env file in the backend folder.
 2. Locate this line:
+```env
 GEMINI_MODEL=gemini-3-flash-preview
-3. Replace it with a more stable model:
+```
+4. Replace it with a more stable model:
+```env
 GEMINI_MODEL=gemini-2.5-flash
-4. Save the file.
+```
+6. Save the file.
 
 Restart the backend server:
+```env
 python manage.py runserver
+```
 
 
 
