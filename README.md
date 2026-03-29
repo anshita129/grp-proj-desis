@@ -136,7 +136,7 @@ DEFAULT_FROM_EMAIL="EduTrade <your_email@gmail.com>"
 Then restart the Django server.
 
 ---
-## AI Engine Setup
+## 🤖AI Engine Setup
 
 To use the AI chatbot, you need a Gemini API key.
 
@@ -150,10 +150,10 @@ To use the AI chatbot, you need a Gemini API key.
 ### Step 2: Add to the `.env` file
 
 In the file named `.env` inside the backend folder add the following variables :
-
+```env
 GEMINI_API_KEY=your_api_key_here
 GEMINI_MODEL=gemini-3-flash-preview
-
+```
 
 Replace `your_api_key_here` with your actual API key.
 
@@ -168,12 +168,13 @@ Sometimes, certain models may be unavailable due to high demand (e.g., 503 UNAVA
 If the chatbot is not responding properly, you can switch to a more stable model.
 
 🔧 How to change the model
-Open the .env file in the backend folder.
-Locate this line:
+1. Open the .env file in the backend folder.
+2. Locate this line:
 GEMINI_MODEL=gemini-3-flash-preview
-Replace it with a more stable model:
+3. Replace it with a more stable model:
 GEMINI_MODEL=gemini-2.5-flash
-Save the file.
+4. Save the file.
+
 Restart the backend server:
 python manage.py runserver
 
